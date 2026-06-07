@@ -18,12 +18,6 @@ export function KPICards({ summary }: { summary: Summary | null }) {
           <div className="kpi-label">{c.label}</div>
         </div>
       ))}
-      <div className="kpi-card kpi-acu">
-        <div className="kpi-value">
-          {summary ? summary.acus_consumed.toFixed(1) : "—"}
-        </div>
-        <div className="kpi-label">ACUs consumed</div>
-      </div>
     </div>
   );
 }

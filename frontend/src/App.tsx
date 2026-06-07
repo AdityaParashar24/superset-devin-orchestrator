@@ -116,19 +116,17 @@ export default function App() {
 
 function AddIssue({ onAdded }: { onAdded: () => void }) {
   const [num, setNum] = useState("");
-  const [title, setTitle] = useState("");
-  const [body, setBody] = useState("");
   const [err, setErr] = useState<string | null>(null);
 
   const submit = async () => {
     setErr(null);
     const n = parseInt(num, 10);
-    if (!n || !title) {
-      setErr("Issue number and title are required.");
+    if (!n) {
+      setErr("Enter a valid GitHub issue number.");
       return;
     }
     try {
-      await api.createIssue(n, title, body);
+      await api.createIssue(n, "", "");
       onAdded();
     } catch (e) {
       setErr((e as Error).message);
@@ -138,27 +136,22 @@ function AddIssue({ onAdded }: { onAdded: () => void }) {
   return (
     <div className="add-issue card">
       <h3>Track a GitHub issue</h3>
+      <p className="muted" style={{ margin: "0 0 8px", fontSize: "0.85rem" }}>
+        Enter the issue number — title and description are fetched from GitHub automatically.
+      </p>
       <div className="form-row">
         <input
-          placeholder="Issue # (e.g. 12)"
+          placeholder="Issue # (e.g. 42)"
           value={num}
           onChange={(e) => setNum(e.target.value)}
+          type="number"
+          min={1}
         />
-        <input
-          placeholder="Title"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
+        <button className="primary" onClick={submit}>
+          Add
+        </button>
       </div>
-      <textarea
-        placeholder="Issue body / description"
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-      />
       {err && <div className="alert">{err}</div>}
-      <button className="primary" onClick={submit}>
-        Add
-      </button>
     </div>
   );
 }

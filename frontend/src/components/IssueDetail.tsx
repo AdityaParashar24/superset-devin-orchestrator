@@ -49,7 +49,6 @@ export function IssueDetail({ issue }: { issue: Issue | null }) {
       <h2>
         #{issue.github_issue_num} — {issue.title}
       </h2>
-      <p className="detail-body">{issue.body}</p>
 
       {issue.failure_reason && (
         <div className="alert">⚠ {issue.failure_reason}</div>
@@ -134,10 +133,6 @@ export function IssueDetail({ issue }: { issue: Issue | null }) {
             </li>
           )}
         </ul>
-        <div className="kv">
-          <span>ACUs consumed</span>
-          <span>{issue.acus_consumed.toFixed(1)}</span>
-        </div>
       </div>
     </div>
   );

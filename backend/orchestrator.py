@@ -58,6 +58,18 @@ TRIAGE_SCHEMA: dict = {
     ],
 }
 
+REVIEW_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "verdict": {
+            "type": "string",
+            "enum": ["Approve", "Needs changes", "Needs human review"],
+        },
+        "concerns": {"type": "string"},
+        "follow_ups": {"type": "string"},
+    },
+    "required": ["verdict", "concerns", "follow_ups"],
+}
 
 class StageError(RuntimeError):
     """Raised when an action is invalid for the issue's current stage."""
@@ -197,6 +209,7 @@ class Orchestrator:
             repos=[self.repo],
             title=f"Review: Superset issue #{num}",
             max_acu_limit=self.settings.review_max_acu,
+            structured_output_schema=REVIEW_SCHEMA,
             tags=["enablement-console", "review"],
         )
         issue.review_session_id = session["session_id"]
@@ -225,7 +238,6 @@ class Orchestrator:
         if not session_id:
             return
         session = await self.devin.get_session(session_id)
-        issue.acus_consumed = float(session.get("acus_consumed") or issue.acus_consumed)
         status = session.get("status")
 
         if status in ("error", "suspended"):
@@ -233,7 +245,7 @@ class Orchestrator:
             issue.failure_reason = session.get("status_detail") or status
             self.store.upsert_issue(issue)
             return
-        if status == "exit":
+        if status == "exit" or (status == "running" and self._session_looks_done(issue, session)):
             await handler(issue, session)
 
     async def _on_triage_done(self, issue: Issue, session: dict) -> None:
@@ -293,3 +305,14 @@ class Orchestrator:
         # PR labels could be applied here via the GitHub PR API; the remediation
         # prompt already instructs Devin to self-apply `devin-generated`.
         logger.info("PR opened for #%s, expected label: %s", issue.github_issue_num, LABEL_GENERATED)
+
+    @staticmethod
+    def _session_looks_done(issue: Issue, session: dict) -> bool:
+        """Check if a session has produced its expected output even if still 'running'."""
+        if issue.state == Stage.TRIAGING:
+            return bool(session.get("structured_output"))
+        if issue.state == Stage.REMEDIATING:
+            return bool(session.get("pull_requests"))
+        if issue.state == Stage.REVIEWING:
+            return bool(session.get("structured_output"))
+        return False

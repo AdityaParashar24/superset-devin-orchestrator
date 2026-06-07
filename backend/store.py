@@ -38,7 +38,6 @@ CREATE TABLE IF NOT EXISTS issues (
     pr_state                TEXT,
     review_verdict          TEXT,
     failure_reason          TEXT,
-    acus_consumed           REAL DEFAULT 0,
     created_at              TEXT,
     updated_at              TEXT
 );
@@ -88,14 +87,14 @@ class Store:
                     risk_notes, remediation_prompt, clarification_needed, triage_session_id, triage_session_url,
                     remediation_session_id, remediation_session_url, review_session_id,
                     review_session_url, pr_url, pr_state, review_verdict, failure_reason,
-                    acus_consumed, created_at, updated_at
+                    created_at, updated_at
                 ) VALUES (
                     :github_issue_num, :title, :body, :state, :readiness_score,
                     :readiness_level, :recommendation, :likely_files, :suggested_validation,
                     :risk_notes, :remediation_prompt, :clarification_needed, :triage_session_id, :triage_session_url,
                     :remediation_session_id, :remediation_session_url, :review_session_id,
                     :review_session_url, :pr_url, :pr_state, :review_verdict, :failure_reason,
-                    :acus_consumed, :created_at, :updated_at
+                    :created_at, :updated_at
                 )
                 ON CONFLICT(github_issue_num) DO UPDATE SET
                     title=excluded.title,
@@ -119,7 +118,6 @@ class Store:
                     pr_state=excluded.pr_state,
                     review_verdict=excluded.review_verdict,
                     failure_reason=excluded.failure_reason,
-                    acus_consumed=excluded.acus_consumed,
                     updated_at=excluded.updated_at
                 """,
                 {**issue.model_dump(), "likely_files": json.dumps(issue.likely_files)},

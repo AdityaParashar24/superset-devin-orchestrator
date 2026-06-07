@@ -104,7 +104,6 @@ async def summary() -> dict:
         "prs_open": count("pr_open", "reviewing", "reviewed"),
         "reviewed": count("reviewed"),
         "needs_attention": count("needs_attention"),
-        "acus_consumed": round(sum(i.acus_consumed for i in issues), 2),
     }
 
 

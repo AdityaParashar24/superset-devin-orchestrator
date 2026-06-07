@@ -74,7 +74,6 @@ class Issue(BaseModel):
     review_verdict: str | None = None
     failure_reason: str | None = None
 
-    acus_consumed: float = 0.0
     created_at: str | None = None
     updated_at: str | None = None
 

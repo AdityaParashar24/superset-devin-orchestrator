@@ -29,7 +29,6 @@ export interface Issue {
   pr_state: string | null;
   review_verdict: string | null;
   failure_reason: string | null;
-  acus_consumed: number;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -41,7 +40,6 @@ export interface Summary {
   prs_open: number;
   reviewed: number;
   needs_attention: number;
-  acus_consumed: number;
 }
 
 export interface Health {
