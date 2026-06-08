@@ -78,22 +78,22 @@ class DevinClient:
     async def list_sessions(self, tags: list[str] | None = None) -> list[dict[str, Any]]:
         """List sessions, optionally filtered by tags.
 
-        V1 supports server-side tag filtering; V3 does not. We use the V1
-        endpoint for listing because it natively supports ?tags= filtering
-        and returns a ``sessions`` array.
+        V3 does not support server-side tag filtering, so we fetch all
+        sessions and filter client-side. The V3 response shape is
+        ``{"items": [...]}``.
         """
-        params: dict[str, Any] = {"limit": 100}
-        if tags:
-            params["tags"] = tags  # V1 accepts tags as a list
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.get(
-                "https://api.devin.ai/v1/sessions",
+                f"{self.base}/organizations/{self.org_id}/sessions",
                 headers=self._headers,
-                params=params,
             )
             resp.raise_for_status()
             data = resp.json()
-        return data.get("sessions", [])
+        all_sessions = data.get("items", [])
+        if not tags:
+            return all_sessions
+        tag_set = set(tags)
+        return [s for s in all_sessions if tag_set.issubset(set(s.get("tags") or []))]
 
     async def stop_session(self, session_id: str) -> None:
         """Stop a running session via DELETE (session ID needs devin- prefix)."""
