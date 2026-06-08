@@ -390,6 +390,10 @@ class Orchestrator:
             sid = s.get("session_id", "")
             if sid in known_sids:
                 continue
+            # Only adopt sessions that are still running — ignore exited/stopped ones.
+            status = s.get("status", "")
+            if status not in ("running", "blocked"):
+                continue
             tags = s.get("tags") or []
             issue_num = None
             for tag in tags:
