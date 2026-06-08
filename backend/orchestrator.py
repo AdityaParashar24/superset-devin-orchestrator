@@ -371,17 +371,23 @@ class Orchestrator:
             logger.warning("Could not list Devin sessions: %s", exc)
             return
 
+        logger.info("discover_sessions: API returned %d sessions", len(sessions))
+
         known_sids = set()
         for issue in self.store.list_issues():
             for sid in (issue.triage_session_id, issue.remediation_session_id, issue.review_session_id):
                 if sid:
                     known_sids.add(sid)
 
+        logger.info("discover_sessions: %d known session IDs to skip", len(known_sids))
+
         for s in sessions:
             sid = s.get("session_id", "")
             if sid in known_sids:
+                logger.info("discover_sessions: skipping known session %s", sid)
                 continue
             tags = s.get("tags") or []
+            logger.info("discover_sessions: evaluating session %s tags=%s", sid, tags)
             issue_num = None
             for tag in tags:
                 m = re.match(r"^issue-(\d+)$", tag)
@@ -389,6 +395,7 @@ class Orchestrator:
                     issue_num = int(m.group(1))
                     break
             if issue_num is None:
+                logger.info("discover_sessions: no issue-N tag found, skipping %s", sid)
                 continue
 
             is_triage = "triage" in tags
@@ -397,11 +404,18 @@ class Orchestrator:
 
             issue = self.store.get_issue(issue_num)
             if issue is None:
-                # Auto-ingest the issue so it appears on the dashboard
                 try:
                     issue = await self.ingest_issue(issue_num)
                 except Exception:  # noqa: BLE001
+                    logger.warning("discover_sessions: could not ingest issue #%s", issue_num)
                     continue
+
+            logger.info(
+                "discover_sessions: issue #%s state=%s, is_triage=%s is_remediation=%s "
+                "has_triage_sid=%s has_remediation_sid=%s",
+                issue_num, issue.state, is_triage, is_remediation,
+                bool(issue.triage_session_id), bool(issue.remediation_session_id),
+            )
 
             url = s.get("url", f"https://app.devin.ai/sessions/{sid}")
 
@@ -418,7 +432,7 @@ class Orchestrator:
                 if issue.state in (Stage.TRIAGED, Stage.APPROVED):
                     issue.state = Stage.REMEDIATING
                 self.store.upsert_issue(issue)
-                logger.info("Discovered remediation session %s for issue #%s", sid, issue_num)
+                logger.info("Discovered remediation session %s for issue #%s → REMEDIATING", sid, issue_num)
             elif is_review and not issue.review_session_id:
                 issue.review_session_id = sid
                 issue.review_session_url = url
@@ -426,6 +440,8 @@ class Orchestrator:
                     issue.state = Stage.REVIEWING
                 self.store.upsert_issue(issue)
                 logger.info("Discovered review session %s for issue #%s", sid, issue_num)
+            else:
+                logger.info("discover_sessions: session %s did not match any adoption rule", sid)
 
     @staticmethod
     def _session_looks_done(issue: Issue, session: dict) -> bool:
