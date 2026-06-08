@@ -397,7 +397,6 @@ class Orchestrator:
 
             issue = self.store.get_issue(issue_num)
             if issue is None:
-                # Auto-ingest the issue so it appears on the dashboard
                 try:
                     issue = await self.ingest_issue(issue_num)
                 except Exception:  # noqa: BLE001
@@ -411,21 +410,18 @@ class Orchestrator:
                 if issue.state == Stage.NEW:
                     issue.state = Stage.TRIAGING
                 self.store.upsert_issue(issue)
-                logger.info("Discovered triage session %s for issue #%s", sid, issue_num)
             elif is_remediation and not issue.remediation_session_id:
                 issue.remediation_session_id = sid
                 issue.remediation_session_url = url
                 if issue.state in (Stage.TRIAGED, Stage.APPROVED):
                     issue.state = Stage.REMEDIATING
                 self.store.upsert_issue(issue)
-                logger.info("Discovered remediation session %s for issue #%s", sid, issue_num)
             elif is_review and not issue.review_session_id:
                 issue.review_session_id = sid
                 issue.review_session_url = url
                 if issue.state == Stage.PR_OPEN:
                     issue.state = Stage.REVIEWING
                 self.store.upsert_issue(issue)
-                logger.info("Discovered review session %s for issue #%s", sid, issue_num)
 
     @staticmethod
     def _session_looks_done(issue: Issue, session: dict) -> bool:
