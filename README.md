@@ -138,7 +138,27 @@ Any state → needs_attention (on error / no PR / invalid output)
 
 ---
 
-## Quick start
+## Quick start (Docker)
+
+### 1. Configure
+```bash
+cp .env.example .env
+# edit .env with your Devin + GitHub credentials
+```
+
+### 2. Run
+```bash
+docker compose up --build
+```
+
+Open http://localhost:3000.
+
+- Frontend (nginx): port 3000
+- Backend (FastAPI): port 8080
+
+---
+
+## Quick start (without Docker)
 
 ### 0. Prerequisites
 - Python 3.11+
