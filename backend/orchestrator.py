@@ -152,7 +152,7 @@ class Orchestrator:
             title=f"Triage: Superset issue #{num}",
             max_acu_limit=self.settings.triage_max_acu,
             structured_output_schema=TRIAGE_SCHEMA,
-            tags=["enablement-console", "triage", f"issue-{num}"],
+            tags=["devin-orchestrator", "triage", f"issue-{num}"],
         )
         issue.triage_session_id = session["session_id"]
         issue.triage_session_url = session.get("url")
@@ -200,7 +200,7 @@ class Orchestrator:
             repos=[self.repo],
             title=f"Remediate: Superset issue #{num}",
             max_acu_limit=self.settings.remediation_max_acu,
-            tags=["enablement-console", "remediation", f"issue-{num}"],
+            tags=["devin-orchestrator", "remediation", f"issue-{num}"],
         )
         issue.remediation_session_id = session["session_id"]
         issue.remediation_session_url = session.get("url")
@@ -233,7 +233,7 @@ class Orchestrator:
             title=f"Review: Superset issue #{num}",
             max_acu_limit=self.settings.review_max_acu,
             structured_output_schema=REVIEW_SCHEMA,
-            tags=["enablement-console", "review", f"issue-{issue.github_issue_num}"],
+            tags=["devin-orchestrator", "review", f"issue-{issue.github_issue_num}"],
         )
         issue.review_session_id = session["session_id"]
         issue.review_session_url = session.get("url")
@@ -361,12 +361,12 @@ class Orchestrator:
     async def discover_sessions(self) -> None:
         """Find Devin sessions started externally (e.g. by a GitHub Action).
 
-        Lists sessions tagged 'enablement-console' and matches them to tracked
+        Lists sessions tagged 'devin-orchestrator' and matches them to tracked
         issues via 'issue-N' tags. Any session not already recorded on an issue
         is adopted into the state machine.
         """
         try:
-            sessions = await self.devin.list_sessions(tags=["enablement-console"])
+            sessions = await self.devin.list_sessions(tags=["devin-orchestrator"])
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not list Devin sessions: %s", exc)
             return
