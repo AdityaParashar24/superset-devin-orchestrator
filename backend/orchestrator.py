@@ -341,12 +341,9 @@ class Orchestrator:
             comment += f"**Concerns:** {concerns}\n\n"
         if follow_ups and follow_ups != "None":
             comment += f"**Follow-ups:** {follow_ups}\n"
-        # Post on the PR, not the issue — extract PR number from URL
         pr_num = self._pr_number_from_url(issue.pr_url)
         if pr_num:
             await self._safe_comment(pr_num, comment)
-        else:
-            await self._safe_comment(issue.github_issue_num, comment)
 
     # ----- helpers ---------------------------------------------------------
     @staticmethod
