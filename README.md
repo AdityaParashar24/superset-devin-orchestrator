@@ -24,32 +24,30 @@ Devin sessions**, each with a role-specific prompt and ACU budget:
 | **Review** | comment-only | review the PR — no merge, no push | a verdict |
 
 Between **Triage** and **Remediation** there is a **human approval gate**: a maintainer
-clicks *Approve remediation* (or applies the `devin-remediate` label).
+clicks *Approve* in the dashboard (or updates the issue on GitHub with clarification
+and re-triages).
 
 ### Why this design
 
-- **Structured output, not prose parsing.** The triage session is forced to return JSON
-  matching a JSON Schema via Devin's `structured_output_schema`, so the orchestrator gets
-  deterministic fields (`readiness_score`, `likely_files`, `remediation_prompt`, …) instead
-  of scraping free text.
+- **Structured output, not prose parsing.** Triage and review sessions are forced to
+  return JSON matching a JSON Schema via Devin's `structured_output_schema`, so the
+  orchestrator gets deterministic fields instead of scraping free text.
 - **The PR comes from the session, not GitHub scraping.** The remediation session object
   exposes `pull_requests[]`, so the orchestrator reads the PR URL/state directly.
 - **Bounded autonomy.** Each role has a `max_acu_limit` so a runaway session can't burn
   budget.
+- **Human clarification loop.** When triage surfaces questions, the human answers via a
+  GitHub comment. On re-triage or approval, the orchestrator re-fetches the issue with
+  comments so the next agent sees the full conversation.
 
 ---
 
 ## Architecture
 
 ```
-GitHub issue (label: devin-triage / devin-remediate)
-        │
-        ▼
-.github/workflows/devin-on-label.yml   ──POST /api/webhook/github──►  FastAPI backend
-                                                                          │
-   React + Vite dashboard  ◄──polls /api/issues, /api/summary──────────  │
-        │  (Approve / Run triage / Run review buttons)                    │
-        └────────────────────POST /api/triage|remediate|review──────────►│
+   React + Vite dashboard  ◄──polls /api/issues, /api/summary──────── FastAPI backend
+        │  (Run triage / Approve / Re-triage)                             │
+        └────────────────────POST /api/triage|remediate──────────────────►│
                                                                           ▼
                                                             Devin REST API (v3)
                                                    triage · remediation · review sessions
@@ -58,8 +56,6 @@ GitHub issue (label: devin-triage / devin-remediate)
 - **backend/** — FastAPI app, SQLite store, orchestrator state machine, Devin + GitHub
   clients, and the three role prompts.
 - **frontend/** — React + Vite dashboard (KPI cards, pipeline table, per-issue timeline).
-- **.github/workflows/devin-on-label.yml** — public-repo trigger (Devin's native GitHub
-  automations are private-repo only).
 
 ### Pipeline states
 
@@ -87,10 +83,6 @@ cp .env.example .env
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# Optional: seed 3 demo issues at different pipeline stages
-python seed.py
-
 uvicorn main:app --reload --port 8000
 ```
 
@@ -120,20 +112,6 @@ The console runs in two modes, controlled by `DEMO_MODE` in `.env`:
 
 ---
 
-## Going live on a public fork
-
-Devin's *native* GitHub automations only fire on **private** repos. For a public fork, the
-included GitHub Action is the equivalent: on `issues.labeled`, it forwards the issue to the
-backend's `/api/webhook/github`, which starts the right Devin session.
-
-Add two repo secrets in GitHub (Settings → Secrets → Actions):
-- `BACKEND_URL` — public URL of the deployed backend
-- `BACKEND_SECRET` — must match the backend's `BACKEND_SECRET`
-
-Then apply `devin-triage` (and later `devin-remediate`) to an issue.
-
----
-
 ## API reference
 
 | Method | Path | Purpose |
@@ -141,13 +119,11 @@ Then apply `devin-triage` (and later `devin-remediate`) to an issue.
 | GET  | `/api/health` | mode + config status |
 | GET  | `/api/issues` | all tracked issues |
 | GET  | `/api/issues/{n}` | one issue |
-| GET  | `/api/summary` | KPI counts + ACUs |
+| GET  | `/api/summary` | KPI counts |
 | POST | `/api/issues` | track a new issue |
-| POST | `/api/triage/{n}` | start a triage session |
+| POST | `/api/triage/{n}` | start (or re-run) a triage session |
 | POST | `/api/remediate/{n}` | approve → start remediation (the human gate) |
-| POST | `/api/review/{n}` | start a review session |
 | POST | `/api/poll` | force a poll tick |
-| POST | `/api/webhook/github` | called by the GitHub Action (Bearer `BACKEND_SECRET`) |
 
 ---
 
@@ -164,18 +140,16 @@ Real, bounded issues in the fork that this console was designed around:
 ## Project layout
 
 ```
-superset-devin-enablement-console/
+superset-devin-orchestrator/
 ├── .env.example
-├── .github/workflows/devin-on-label.yml
 ├── backend/
 │   ├── main.py            # FastAPI app + routes + poll loop
-│   ├── orchestrator.py    # state machine, triage schema, stage handlers
+│   ├── orchestrator.py    # state machine, triage/review schemas, stage handlers
 │   ├── devin_client.py    # Devin REST wrapper (+ DEMO_MODE simulator)
 │   ├── github_client.py   # issue/label/comment (+ DEMO_MODE no-op)
 │   ├── store.py           # SQLite CRUD
 │   ├── models.py          # Pydantic models + enums
 │   ├── config.py          # .env loader
-│   ├── seed.py            # stage demo issues
 │   └── prompts/{triage,remediation,review}.md
 └── frontend/              # React + Vite dashboard
 ```

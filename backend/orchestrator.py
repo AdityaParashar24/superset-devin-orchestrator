@@ -15,16 +15,21 @@ Design choices worth noting:
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 
 from config import Settings
 from devin_client import DevinClient
 from github_client import (
-    LABEL_GENERATED,
     LABEL_REMEDIATE,
+    LABEL_TRIAGE,
     GitHubClient,
 )
 from models import Issue, Stage, TriageReport
+
+LABEL_TRIAGED = "devin-triaged"
+LABEL_PR_OPEN = "devin-pr-open"
+LABEL_REVIEWED = "devin-reviewed"
 
 logger = logging.getLogger("orchestrator")
 
@@ -126,6 +131,15 @@ class Orchestrator:
     # ----- stage: triage ---------------------------------------------------
     async def start_triage(self, num: int) -> Issue:
         issue = await self.ingest_issue(num)
+        # Reset prior triage data (supports re-triage)
+        issue.readiness_score = None
+        issue.readiness_level = None
+        issue.recommendation = None
+        issue.likely_files = []
+        issue.suggested_validation = None
+        issue.risk_notes = None
+        issue.remediation_prompt = None
+        issue.clarification_needed = None
         prompt = _load_prompt("triage.md").format(
             repo=self.repo,
             issue_number=issue.github_issue_num,
@@ -138,13 +152,14 @@ class Orchestrator:
             title=f"Triage: Superset issue #{num}",
             max_acu_limit=self.settings.triage_max_acu,
             structured_output_schema=TRIAGE_SCHEMA,
-            tags=["enablement-console", "triage"],
+            tags=["enablement-console", "triage", f"issue-{num}"],
         )
         issue.triage_session_id = session["session_id"]
         issue.triage_session_url = session.get("url")
         issue.state = Stage.TRIAGING
         issue.failure_reason = None
         self.store.upsert_issue(issue)
+        await self._safe_add_label(num, LABEL_TRIAGE)
         await self._safe_comment(
             num, f"Devin triage session started: {issue.triage_session_url}"
         )
@@ -159,6 +174,14 @@ class Orchestrator:
             raise StageError(
                 f"Issue #{num} must be TRIAGED before remediation (is {issue.state})."
             )
+
+        # Re-fetch issue with comments so remediation sees human clarification
+        try:
+            gh = await self.github.get_issue_with_comments(num)
+            issue.body = gh.get("body") or issue.body
+            self.store.upsert_issue(issue)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not re-fetch issue #%s with comments: %s", num, exc)
 
         if add_label:
             # Approval is recorded as the devin-remediate label on the issue.
@@ -177,7 +200,7 @@ class Orchestrator:
             repos=[self.repo],
             title=f"Remediate: Superset issue #{num}",
             max_acu_limit=self.settings.remediation_max_acu,
-            tags=["enablement-console", "remediation"],
+            tags=["enablement-console", "remediation", f"issue-{num}"],
         )
         issue.remediation_session_id = session["session_id"]
         issue.remediation_session_url = session.get("url")
@@ -210,7 +233,7 @@ class Orchestrator:
             title=f"Review: Superset issue #{num}",
             max_acu_limit=self.settings.review_max_acu,
             structured_output_schema=REVIEW_SCHEMA,
-            tags=["enablement-console", "review"],
+            tags=["enablement-console", "review", f"issue-{issue.github_issue_num}"],
         )
         issue.review_session_id = session["session_id"]
         issue.review_session_url = session.get("url")
@@ -221,7 +244,8 @@ class Orchestrator:
 
     # ----- polling ---------------------------------------------------------
     async def poll_once(self) -> None:
-        """Advance every in-flight issue based on its session status."""
+        """Discover externally-started sessions, then advance in-flight issues."""
+        await self.discover_sessions()
         for issue in self.store.list_in_flight():
             try:
                 await self._advance(issue)
@@ -245,7 +269,14 @@ class Orchestrator:
             issue.failure_reason = session.get("status_detail") or status
             self.store.upsert_issue(issue)
             return
-        if status == "exit" or (status == "running" and self._session_looks_done(issue, session)):
+        if status in ("exit", "blocked"):
+            await handler(issue, session)
+        elif status == "running" and self._session_looks_done(issue, session):
+            logger.info("Session %s produced output while running; stopping.", session_id)
+            try:
+                await self.devin.stop_session(session_id)
+            except Exception:  # noqa: BLE001
+                logger.warning("Could not stop session %s", session_id)
             await handler(issue, session)
 
     async def _on_triage_done(self, issue: Issue, session: dict) -> None:
@@ -266,6 +297,21 @@ class Orchestrator:
             issue.state = Stage.NEEDS_ATTENTION
             issue.failure_reason = "Triage returned no/invalid structured output."
         self.store.upsert_issue(issue)
+        # Post triage report + label on GitHub
+        await self._safe_add_label(issue.github_issue_num, LABEL_TRIAGED)
+        if issue.state == Stage.TRIAGED:
+            comment = (
+                f"### Triage Report\n\n"
+                f"**Readiness:** {issue.readiness_level} ({issue.readiness_score}/100) "
+                f"· {issue.recommendation}\n\n"
+            )
+            if issue.risk_notes:
+                comment += f"**Risks:** {issue.risk_notes}\n\n"
+            if issue.clarification_needed and issue.clarification_needed != "None":
+                comment += f"**Clarification needed:**\n{issue.clarification_needed}\n\n"
+            if issue.likely_files:
+                comment += f"**Likely files:** {', '.join(issue.likely_files)}\n"
+            await self._safe_comment(issue.github_issue_num, comment)
 
     async def _on_remediation_done(self, issue: Issue, session: dict) -> None:
         prs = session.get("pull_requests") or []
@@ -274,7 +320,7 @@ class Orchestrator:
             issue.pr_state = prs[0].get("pr_state")
             issue.state = Stage.PR_OPEN
             self.store.upsert_issue(issue)
-            await self._safe_add_label_pr(issue)
+            await self._safe_add_label(issue.github_issue_num, LABEL_PR_OPEN)
             # Auto-kick the review session once a PR exists.
             await self.start_review(issue.github_issue_num)
         else:
@@ -287,6 +333,16 @@ class Orchestrator:
         issue.review_verdict = out.get("verdict", "Needs human review")
         issue.state = Stage.REVIEWED
         self.store.upsert_issue(issue)
+        # Post review verdict + label on GitHub
+        await self._safe_add_label(issue.github_issue_num, LABEL_REVIEWED)
+        comment = f"### Review Verdict: {issue.review_verdict}\n\n"
+        concerns = out.get("concerns", "")
+        follow_ups = out.get("follow_ups", "")
+        if concerns and concerns != "None":
+            comment += f"**Concerns:** {concerns}\n\n"
+        if follow_ups and follow_ups != "None":
+            comment += f"**Follow-ups:** {follow_ups}\n"
+        await self._safe_comment(issue.github_issue_num, comment)
 
     # ----- helpers ---------------------------------------------------------
     async def _safe_comment(self, num: int, body: str) -> None:
@@ -301,10 +357,75 @@ class Orchestrator:
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not add label %s to #%s: %s", label, num, exc)
 
-    async def _safe_add_label_pr(self, issue: Issue) -> None:
-        # PR labels could be applied here via the GitHub PR API; the remediation
-        # prompt already instructs Devin to self-apply `devin-generated`.
-        logger.info("PR opened for #%s, expected label: %s", issue.github_issue_num, LABEL_GENERATED)
+    # ----- session discovery (for label-triggered sessions) ----------------
+    async def discover_sessions(self) -> None:
+        """Find Devin sessions started externally (e.g. by a GitHub Action).
+
+        Lists sessions tagged 'enablement-console' and matches them to tracked
+        issues via 'issue-N' tags. Any session not already recorded on an issue
+        is adopted into the state machine.
+        """
+        try:
+            sessions = await self.devin.list_sessions(tags=["enablement-console"])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not list Devin sessions: %s", exc)
+            return
+
+        known_sids = set()
+        for issue in self.store.list_issues():
+            for sid in (issue.triage_session_id, issue.remediation_session_id, issue.review_session_id):
+                if sid:
+                    known_sids.add(sid)
+
+        for s in sessions:
+            sid = s.get("session_id", "")
+            if sid in known_sids:
+                continue
+            tags = s.get("tags") or []
+            issue_num = None
+            for tag in tags:
+                m = re.match(r"^issue-(\d+)$", tag)
+                if m:
+                    issue_num = int(m.group(1))
+                    break
+            if issue_num is None:
+                continue
+
+            is_triage = "triage" in tags
+            is_remediation = "remediation" in tags
+            is_review = "review" in tags
+
+            issue = self.store.get_issue(issue_num)
+            if issue is None:
+                # Auto-ingest the issue so it appears on the dashboard
+                try:
+                    issue = await self.ingest_issue(issue_num)
+                except Exception:  # noqa: BLE001
+                    continue
+
+            url = s.get("url", f"https://app.devin.ai/sessions/{sid}")
+
+            if is_triage and not issue.triage_session_id:
+                issue.triage_session_id = sid
+                issue.triage_session_url = url
+                if issue.state == Stage.NEW:
+                    issue.state = Stage.TRIAGING
+                self.store.upsert_issue(issue)
+                logger.info("Discovered triage session %s for issue #%s", sid, issue_num)
+            elif is_remediation and not issue.remediation_session_id:
+                issue.remediation_session_id = sid
+                issue.remediation_session_url = url
+                if issue.state in (Stage.TRIAGED, Stage.APPROVED):
+                    issue.state = Stage.REMEDIATING
+                self.store.upsert_issue(issue)
+                logger.info("Discovered remediation session %s for issue #%s", sid, issue_num)
+            elif is_review and not issue.review_session_id:
+                issue.review_session_id = sid
+                issue.review_session_url = url
+                if issue.state == Stage.PR_OPEN:
+                    issue.state = Stage.REVIEWING
+                self.store.upsert_issue(issue)
+                logger.info("Discovered review session %s for issue #%s", sid, issue_num)
 
     @staticmethod
     def _session_looks_done(issue: Issue, session: dict) -> bool:

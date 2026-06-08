@@ -103,7 +103,6 @@ export default function App() {
             onSelect={setSelected}
             onTriage={(n) => run(n, api.triage)}
             onApprove={(n) => run(n, api.remediate)}
-            onReview={(n) => run(n, api.review)}
           />
         </div>
         <div className="right">
@@ -126,7 +125,7 @@ function AddIssue({ onAdded }: { onAdded: () => void }) {
       return;
     }
     try {
-      await api.createIssue(n, "", "");
+      await api.createIssue(n);
       onAdded();
     } catch (e) {
       setErr((e as Error).message);

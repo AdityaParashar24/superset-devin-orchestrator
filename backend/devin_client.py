@@ -75,6 +75,31 @@ class DevinClient:
             resp.raise_for_status()
             return resp.json()
 
+    async def list_sessions(self, tags: list[str] | None = None) -> list[dict[str, Any]]:
+        """List sessions, optionally filtered by tags."""
+        params: dict[str, str] = {}
+        if tags:
+            params["tags"] = ",".join(tags)
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.get(
+                f"{self.base}/organizations/{self.org_id}/sessions",
+                headers=self._headers,
+                params=params,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        return data if isinstance(data, list) else data.get("sessions", [])
+
+    async def stop_session(self, session_id: str) -> None:
+        """Stop a running session via DELETE (session ID needs devin- prefix)."""
+        devin_id = session_id if session_id.startswith("devin-") else f"devin-{session_id}"
+        async with httpx.AsyncClient(timeout=60) as client:
+            resp = await client.delete(
+                f"{self.base}/organizations/{self.org_id}/sessions/{devin_id}",
+                headers=self._headers,
+            )
+            resp.raise_for_status()
+
 
 class FakeDevinClient(DevinClient):
     """In-memory simulator used when DEMO_MODE is enabled.
@@ -143,6 +168,14 @@ class FakeDevinClient(DevinClient):
             elif s["_kind"] == "review":
                 s["structured_output"] = {"verdict": "Needs human review"}
         return self._public(s)
+
+    async def list_sessions(self, tags: list[str] | None = None) -> list[dict[str, Any]]:
+        return [self._public(s) for s in self._sessions.values()]
+
+    async def stop_session(self, session_id: str) -> None:
+        s = self._sessions.get(session_id)
+        if s:
+            s["status"] = "exit"
 
     @staticmethod
     def _public(s: dict[str, Any]) -> dict[str, Any]:

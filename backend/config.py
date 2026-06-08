@@ -24,7 +24,6 @@ class Settings:
     devin_api_base: str
     github_token: str
     github_repo: str
-    backend_secret: str
     db_path: str
     poll_interval_seconds: int
     triage_max_acu: int
@@ -46,7 +45,6 @@ def get_settings() -> Settings:
         devin_api_base=os.getenv("DEVIN_API_BASE", "https://api.devin.ai/v3"),
         github_token=os.getenv("GITHUB_TOKEN", ""),
         github_repo=os.getenv("GITHUB_REPO", ""),
-        backend_secret=os.getenv("BACKEND_SECRET", "dev-secret"),
         db_path=os.getenv("DB_PATH", str(BASE_DIR / "enablement.db")),
         poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "20")),
         triage_max_acu=int(os.getenv("TRIAGE_MAX_ACU", "5")),
