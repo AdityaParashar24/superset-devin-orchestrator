@@ -333,7 +333,6 @@ class Orchestrator:
         issue.review_verdict = out.get("verdict", "Needs human review")
         issue.state = Stage.REVIEWED
         self.store.upsert_issue(issue)
-        # Post review verdict + label on GitHub
         await self._safe_add_label(issue.github_issue_num, LABEL_REVIEWED)
         comment = f"### Review Verdict: {issue.review_verdict}\n\n"
         concerns = out.get("concerns", "")
@@ -342,9 +341,22 @@ class Orchestrator:
             comment += f"**Concerns:** {concerns}\n\n"
         if follow_ups and follow_ups != "None":
             comment += f"**Follow-ups:** {follow_ups}\n"
-        await self._safe_comment(issue.github_issue_num, comment)
+        # Post on the PR, not the issue — extract PR number from URL
+        pr_num = self._pr_number_from_url(issue.pr_url)
+        if pr_num:
+            await self._safe_comment(pr_num, comment)
+        else:
+            await self._safe_comment(issue.github_issue_num, comment)
 
     # ----- helpers ---------------------------------------------------------
+    @staticmethod
+    def _pr_number_from_url(pr_url: str | None) -> int | None:
+        """Extract the PR number from a GitHub PR URL like .../pull/42."""
+        if not pr_url:
+            return None
+        m = re.search(r"/pull/(\d+)", pr_url)
+        return int(m.group(1)) if m else None
+
     async def _safe_comment(self, num: int, body: str) -> None:
         try:
             await self.github.comment(num, body)
