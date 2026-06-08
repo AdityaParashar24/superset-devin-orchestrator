@@ -29,7 +29,6 @@ class Settings:
     triage_max_acu: int
     remediation_max_acu: int
     review_max_acu: int
-    demo_mode: bool
 
     @property
     def configured(self) -> bool:
@@ -50,8 +49,6 @@ def get_settings() -> Settings:
         triage_max_acu=int(os.getenv("TRIAGE_MAX_ACU", "5")),
         remediation_max_acu=int(os.getenv("REMEDIATION_MAX_ACU", "30")),
         review_max_acu=int(os.getenv("REVIEW_MAX_ACU", "10")),
-        # DEMO_MODE simulates Devin/GitHub so the dashboard works without credentials.
-        demo_mode=os.getenv("DEMO_MODE", "false").lower() in ("1", "true", "yes"),
     )
 
 

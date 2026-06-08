@@ -44,7 +44,6 @@ export interface Summary {
 
 export interface Health {
   status: string;
-  demo_mode: boolean;
   configured: boolean;
   repo: string;
 }
