@@ -28,9 +28,11 @@ Provide your assessment using the required structured output schema:
 - `recommendation` (Proceed / Needs human clarification / Not suitable)
 - `likely_files` (array of file paths)
 - `suggested_validation` (a concrete test command or manual verification step)
-- `risk_notes` (one short paragraph)
+- `risk_notes` (one sentence: what could break if this fix is done wrong 
+  — e.g., "touches shared auth middleware" or "low risk, isolated utility")
 - `remediation_prompt` (the exact prompt you would hand to a remediation agent to
   fix this issue, including acceptance criteria and guardrails)
-- `clarification_needed` (if readiness_score < 70, explain exactly what additional
-  information, context, or reproduction steps would raise your confidence — be
-  specific to this issue. Leave empty string if score >= 70)
+- `clarification_needed` (list any specific questions, missing context, or decisions
+  a human should consider before approving remediation. Format as a numbered list,
+  one question per line, separated by newlines. Keep each question to one sentence.
+  If everything is clear and no clarification is needed, return "None")

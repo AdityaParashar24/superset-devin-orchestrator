@@ -80,17 +80,21 @@ export function IssueDetail({ issue }: { issue: Issue | null }) {
               {issue.recommendation}
             </span>
           </div>
-          <div className="kv">
-            <span>Risks</span>
-            <span>{issue.risk_notes}</span>
-          </div>
         </div>
       )}
 
-      {issue.clarification_needed && (
+      {issue.clarification_needed && issue.clarification_needed !== "None" && (
         <div className="card" style={{ borderLeft: "3px solid var(--amber)" }}>
           <h3>Clarification needed</h3>
-          <p>{issue.clarification_needed}</p>
+          <ol style={{ fontSize: "0.85rem", lineHeight: "1.7", paddingLeft: "1.2rem", margin: 0 }}>
+            {issue.clarification_needed
+              .split(/\n/)
+              .map((line) => line.replace(/^\d+\.\s*/, "").trim())
+              .filter(Boolean)
+              .map((q, i) => (
+                <li key={i}>{q}</li>
+              ))}
+          </ol>
         </div>
       )}
 
