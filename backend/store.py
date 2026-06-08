@@ -146,6 +146,4 @@ class Store:
             ).fetchall()
         return [self._row_to_issue(r) for r in rows]
 
-    def delete_all(self) -> None:
-        with self._connect() as conn:
-            conn.execute("DELETE FROM issues")
+

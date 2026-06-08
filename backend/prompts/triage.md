@@ -1,4 +1,4 @@
-You are acting as a senior AI enablement engineer evaluating whether the following
+You are acting as a senior engineer evaluating whether the following
 GitHub issue in the Apache Superset repository is suitable for autonomous Devin
 remediation.
 
