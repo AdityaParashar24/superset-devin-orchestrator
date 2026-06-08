@@ -43,6 +43,24 @@ class GitHubClient:
             resp.raise_for_status()
             return resp.json()
 
+    async def get_issue_with_comments(self, num: int) -> dict[str, Any]:
+        """Fetch issue body + all comments, merged into a single body string."""
+        issue = await self.get_issue(num)
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                f"{self.base}/repos/{self.repo}/issues/{num}/comments",
+                headers=self._headers,
+            )
+            resp.raise_for_status()
+            comments = resp.json()
+        if comments:
+            comment_text = "\n\n".join(
+                f"**Comment by {c['user']['login']}:**\n{c['body']}"
+                for c in comments
+            )
+            issue["body"] = (issue.get("body") or "") + "\n\n---\n## Comments\n" + comment_text
+        return issue
+
     async def add_label(self, num: int, label: str) -> None:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
@@ -71,6 +89,9 @@ class FakeGitHubClient(GitHubClient):
             "title": f"Demo issue #{num}",
             "body": "Demo issue body (DEMO_MODE).",
         }
+
+    async def get_issue_with_comments(self, num: int) -> dict[str, Any]:  # noqa: D102
+        return await self.get_issue(num)
 
     async def add_label(self, num: int, label: str) -> None:  # noqa: D102
         return None

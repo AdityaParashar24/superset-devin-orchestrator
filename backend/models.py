@@ -27,12 +27,6 @@ class ReadinessLevel(str, Enum):
     LOW = "Low"
 
 
-class ReviewVerdict(str, Enum):
-    LOOKS_GOOD = "Looks good"
-    NEEDS_CHANGES = "Needs changes"
-    NEEDS_HUMAN = "Needs human review"
-
-
 class TriageReport(BaseModel):
     """Structured output we require from the triage Devin session."""
 
@@ -80,14 +74,3 @@ class Issue(BaseModel):
 
 class CreateIssueRequest(BaseModel):
     github_issue_num: int
-    title: str
-    body: str = ""
-
-
-class WebhookPayload(BaseModel):
-    """Payload sent by the GitHub Action when a label is applied."""
-
-    action: str  # "triage" | "remediate"
-    issue_number: int
-    title: str = ""
-    body: str = ""

@@ -126,6 +126,15 @@ class Orchestrator:
     # ----- stage: triage ---------------------------------------------------
     async def start_triage(self, num: int) -> Issue:
         issue = await self.ingest_issue(num)
+        # Reset prior triage data (supports re-triage)
+        issue.readiness_score = None
+        issue.readiness_level = None
+        issue.recommendation = None
+        issue.likely_files = []
+        issue.suggested_validation = None
+        issue.risk_notes = None
+        issue.remediation_prompt = None
+        issue.clarification_needed = None
         prompt = _load_prompt("triage.md").format(
             repo=self.repo,
             issue_number=issue.github_issue_num,
@@ -159,6 +168,14 @@ class Orchestrator:
             raise StageError(
                 f"Issue #{num} must be TRIAGED before remediation (is {issue.state})."
             )
+
+        # Re-fetch issue with comments so remediation sees human clarification
+        try:
+            gh = await self.github.get_issue_with_comments(num)
+            issue.body = gh.get("body") or issue.body
+            self.store.upsert_issue(issue)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not re-fetch issue #%s with comments: %s", num, exc)
 
         if add_label:
             # Approval is recorded as the devin-remediate label on the issue.
@@ -245,7 +262,14 @@ class Orchestrator:
             issue.failure_reason = session.get("status_detail") or status
             self.store.upsert_issue(issue)
             return
-        if status == "exit" or (status == "running" and self._session_looks_done(issue, session)):
+        if status in ("exit", "blocked"):
+            await handler(issue, session)
+        elif status == "running" and self._session_looks_done(issue, session):
+            logger.info("Session %s produced output while running; stopping.", session_id)
+            try:
+                await self.devin.stop_session(session_id)
+            except Exception:  # noqa: BLE001
+                logger.warning("Could not stop session %s", session_id)
             await handler(issue, session)
 
     async def _on_triage_done(self, issue: Issue, session: dict) -> None:

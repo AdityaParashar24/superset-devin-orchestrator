@@ -19,10 +19,9 @@ export const api = {
   getIssue: (n: number) => req<Issue>(`/issues/${n}`),
   triage: (n: number) => req<Issue>(`/triage/${n}`, { method: "POST" }),
   remediate: (n: number) => req<Issue>(`/remediate/${n}`, { method: "POST" }),
-  review: (n: number) => req<Issue>(`/review/${n}`, { method: "POST" }),
-  createIssue: (github_issue_num: number, title: string, body: string) =>
+  createIssue: (num: number) =>
     req<Issue>("/issues", {
       method: "POST",
-      body: JSON.stringify({ github_issue_num, title, body }),
+      body: JSON.stringify({ github_issue_num: num }),
     }),
 };

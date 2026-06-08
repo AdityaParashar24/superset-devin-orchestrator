@@ -8,7 +8,6 @@ interface Props {
   onSelect: (n: number) => void;
   onTriage: (n: number) => void;
   onApprove: (n: number) => void;
-  onReview: (n: number) => void;
 }
 
 function ActionCell({
@@ -16,13 +15,11 @@ function ActionCell({
   busy,
   onTriage,
   onApprove,
-  onReview,
 }: {
   issue: Issue;
   busy: number | null;
   onTriage: (n: number) => void;
   onApprove: (n: number) => void;
-  onReview: (n: number) => void;
 }) {
   const n = issue.github_issue_num;
   const isBusy = busy === n;
@@ -35,23 +32,21 @@ function ActionCell({
   }
   if (issue.state === "triaged") {
     return (
-      <button className="primary" disabled={isBusy} onClick={() => onApprove(n)}>
-        {isBusy ? "…" : "Approve remediation"}
-      </button>
-    );
-  }
-  if (issue.state === "pr_open") {
-    return (
-      <button disabled={isBusy} onClick={() => onReview(n)}>
-        {isBusy ? "…" : "Run review"}
-      </button>
+      <div style={{ display: "flex", gap: "6px" }}>
+        <button disabled={isBusy} onClick={() => onTriage(n)}>
+          Re-triage
+        </button>
+        <button className="primary" disabled={isBusy} onClick={() => onApprove(n)}>
+          {isBusy ? "…" : "Approve"}
+        </button>
+      </div>
     );
   }
   return <span className="muted">—</span>;
 }
 
 export function IssueTable(props: Props) {
-  const { issues, selected, busy, onSelect, onTriage, onApprove, onReview } = props;
+  const { issues, selected, busy, onSelect, onTriage, onApprove } = props;
   return (
     <table className="issue-table">
       <thead>
@@ -60,7 +55,6 @@ export function IssueTable(props: Props) {
           <th>Triage</th>
           <th>Stage</th>
           <th>PR</th>
-          <th>Review</th>
           <th>Action</th>
         </tr>
       </thead>
@@ -93,27 +87,19 @@ export function IssueTable(props: Props) {
                 <span className="muted">—</span>
               )}
             </td>
-            <td>
-              {issue.review_verdict ? (
-                <span className="verdict">{issue.review_verdict}</span>
-              ) : (
-                <span className="muted">—</span>
-              )}
-            </td>
             <td onClick={(e) => e.stopPropagation()}>
               <ActionCell
                 issue={issue}
                 busy={busy}
                 onTriage={onTriage}
                 onApprove={onApprove}
-                onReview={onReview}
               />
             </td>
           </tr>
         ))}
         {issues.length === 0 && (
           <tr>
-            <td colSpan={6} className="muted center">
+            <td colSpan={5} className="muted center">
               No issues tracked yet. Add one to begin.
             </td>
           </tr>

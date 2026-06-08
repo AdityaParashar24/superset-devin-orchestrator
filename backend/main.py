@@ -10,13 +10,13 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from devin_client import build_devin_client
 from github_client import build_github_client
-from models import CreateIssueRequest, Issue, WebhookPayload
+from models import CreateIssueRequest, Issue
 from orchestrator import Orchestrator, StageError
 from store import Store
 
@@ -59,12 +59,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-def require_webhook_secret(authorization: str = Header(default="")) -> None:
-    expected = f"Bearer {settings.backend_secret}"
-    if authorization != expected:
-        raise HTTPException(status_code=401, detail="Invalid webhook secret")
 
 
 # ----- read endpoints ------------------------------------------------------
@@ -110,7 +104,7 @@ async def summary() -> dict:
 # ----- action endpoints ----------------------------------------------------
 @app.post("/api/issues", response_model=Issue)
 async def create_issue(req: CreateIssueRequest) -> Issue:
-    return await orchestrator.ingest_issue(req.github_issue_num, req.title, req.body)
+    return await orchestrator.ingest_issue(req.github_issue_num)
 
 
 @app.post("/api/triage/{num}", response_model=Issue)
@@ -143,21 +137,4 @@ async def poll_now() -> dict:
     return {"status": "polled"}
 
 
-# ----- webhook (GitHub Action) ---------------------------------------------
-@app.post("/api/webhook/github", dependencies=[Depends(require_webhook_secret)])
-async def github_webhook(payload: WebhookPayload) -> dict:
-    if payload.action == "triage":
-        issue = await orchestrator.start_triage(payload.issue_number)
-    elif payload.action == "remediate":
-        await orchestrator.ingest_issue(
-            payload.issue_number, payload.title, payload.body
-        )
-        try:
-            issue = await orchestrator.start_remediation(
-                payload.issue_number, add_label=False
-            )
-        except StageError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-    else:
-        raise HTTPException(status_code=400, detail=f"Unknown action {payload.action}")
-    return {"status": "accepted", "issue": issue.github_issue_num, "state": issue.state}
+

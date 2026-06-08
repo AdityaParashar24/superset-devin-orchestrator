@@ -21,8 +21,8 @@ Review the pull request against the original issue and the triage report.
 - Do NOT merge the PR.
 - Do NOT push commits to the branch.
 
-## Output
-Leave a PR review comment, and return a structured verdict containing:
-- `verdict` (Looks good / Needs changes / Needs human review)
-- `concerns` (main concerns, if any)
-- `follow_ups` (suggested follow-ups, if any)
+## Return (via structured output)
+Leave a PR review comment, then return a structured verdict:
+- `verdict` (Approve / Needs changes / Needs human review)
+- `concerns` (main concerns, or "None" if clean)
+- `follow_ups` (suggested follow-ups, or "None")
