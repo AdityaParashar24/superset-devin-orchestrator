@@ -65,7 +65,7 @@ body {
   letter-spacing: 0.04em;
 }
 
-.pill.demo {
+.pill.disconnected {
   background: rgba(210, 153, 34, 0.15);
   color: var(--amber);
   border: 1px solid var(--amber);

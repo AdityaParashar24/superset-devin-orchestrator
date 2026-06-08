@@ -1,4 +1,4 @@
-"""FastAPI entrypoint for the Superset Maintenance Enablement Console.
+"""FastAPI entrypoint for the Devin Orchestrator.
 
 Exposes the orchestrator over HTTP and runs a background poll loop that advances
 in-flight issues. The React frontend consumes these endpoints.
@@ -14,8 +14,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from devin_client import build_devin_client
-from github_client import build_github_client
+from devin_client import DevinClient
+from github_client import GitHubClient
 from models import CreateIssueRequest, Issue
 from orchestrator import Orchestrator, StageError
 from store import Store
@@ -24,8 +24,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
 
 store = Store(settings.db_path)
-devin = build_devin_client(settings)
-github = build_github_client(settings)
+devin = DevinClient(settings)
+github = GitHubClient(settings)
 orchestrator = Orchestrator(settings, store, devin, github)
 
 
@@ -42,8 +42,7 @@ async def _poll_loop() -> None:
 async def lifespan(app: FastAPI):
     task = asyncio.create_task(_poll_loop())
     logger.info(
-        "Console started | demo_mode=%s | configured=%s | repo=%s",
-        settings.demo_mode,
+        "Orchestrator started | configured=%s | repo=%s",
         settings.configured,
         settings.github_repo or "(unset)",
     )
@@ -51,7 +50,7 @@ async def lifespan(app: FastAPI):
     task.cancel()
 
 
-app = FastAPI(title="Superset Maintenance Enablement Console", lifespan=lifespan)
+app = FastAPI(title="Devin Orchestrator", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,7 +65,6 @@ app.add_middleware(
 async def health() -> dict:
     return {
         "status": "ok",
-        "demo_mode": settings.demo_mode,
         "configured": settings.configured,
         "repo": settings.github_repo,
     }
@@ -135,6 +133,3 @@ async def review(num: int) -> Issue:
 async def poll_now() -> dict:
     await orchestrator.poll_once()
     return {"status": "polled"}
-
-
-

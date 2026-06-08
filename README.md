@@ -147,7 +147,7 @@ Any state → needs_attention (on error / no PR / invalid output)
 ### 1. Configure
 ```bash
 cp .env.example .env
-# edit .env — or leave DEMO_MODE=true to run with simulated Devin/GitHub
+# edit .env with your Devin + GitHub credentials
 ```
 
 ### 2. Backend
@@ -180,18 +180,14 @@ Now applying `devin-triage` to an issue fires a triage session automatically.
 
 ---
 
-## Demo mode vs. live mode
+## Required credentials
 
-The console runs in two modes, controlled by `DEMO_MODE` in `.env`:
+All four must be set in `.env` for the orchestrator to function:
 
-- **`DEMO_MODE=true`** — Devin and GitHub are simulated in-process. Sessions auto-complete
-  after a few seconds with realistic triage reports and fake PRs. Lets you click the whole
-  pipeline end-to-end with **zero credentials**. Great for demos/screenshots.
-- **`DEMO_MODE=false`** — real Devin sessions and real GitHub calls. Requires:
-  - `DEVIN_API_KEY` — a Devin service-user token (`app.devin.ai` → Settings → Service Users)
-  - `DEVIN_ORG_ID` — your org id (`org-…`)
-  - `GITHUB_TOKEN` — PAT with `issues:write` + `pull_requests:read`
-  - `GITHUB_REPO` — e.g. `AdityaParashar24/superset`
+- `DEVIN_API_KEY` — a Devin service-user token (`app.devin.ai` → Settings → Service Users)
+- `DEVIN_ORG_ID` — your org id (`org-…`)
+- `GITHUB_TOKEN` — PAT with `issues:write` + `pull_requests:read`
+- `GITHUB_REPO` — e.g. `AdityaParashar24/superset`
 
 ---
 
@@ -229,8 +225,8 @@ superset-devin-orchestrator/
 ├── backend/
 │   ├── main.py            # FastAPI app + routes + poll loop
 │   ├── orchestrator.py    # state machine, discover_sessions(), triage/review schemas
-│   ├── devin_client.py    # Devin REST wrapper (+ DEMO_MODE simulator)
-│   ├── github_client.py   # issue/label/comment (+ DEMO_MODE no-op)
+│   ├── devin_client.py    # Devin REST wrapper (v3)
+│   ├── github_client.py   # issue/label/comment
 │   ├── store.py           # SQLite CRUD
 │   ├── models.py          # Pydantic models + enums
 │   ├── config.py          # .env loader

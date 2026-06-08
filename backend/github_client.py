@@ -3,8 +3,6 @@
 Responsibilities are intentionally narrow: read an issue, add/remove labels, and
 post a comment linking the Devin session. PR detection is NOT done here — that
 comes straight off the Devin session object (session.pull_requests[]).
-
-When DEMO_MODE is on, a no-op fake is returned so the console runs credential-free.
 """
 
 from __future__ import annotations
@@ -78,29 +76,3 @@ class GitHubClient:
                 json={"body": body},
             )
             resp.raise_for_status()
-
-
-class FakeGitHubClient(GitHubClient):
-    """No-op GitHub client for DEMO_MODE."""
-
-    async def get_issue(self, num: int) -> dict[str, Any]:
-        return {
-            "number": num,
-            "title": f"Demo issue #{num}",
-            "body": "Demo issue body (DEMO_MODE).",
-        }
-
-    async def get_issue_with_comments(self, num: int) -> dict[str, Any]:  # noqa: D102
-        return await self.get_issue(num)
-
-    async def add_label(self, num: int, label: str) -> None:  # noqa: D102
-        return None
-
-    async def comment(self, num: int, body: str) -> None:  # noqa: D102
-        return None
-
-
-def build_github_client(settings: Settings) -> GitHubClient:
-    if settings.demo_mode:
-        return FakeGitHubClient(settings)
-    return GitHubClient(settings)

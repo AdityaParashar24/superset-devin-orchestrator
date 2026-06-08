@@ -69,8 +69,8 @@ export default function App() {
         <div className="status">
           {health && (
             <>
-              <span className={`pill ${health.demo_mode ? "demo" : "live"}`}>
-                {health.demo_mode ? "DEMO MODE" : "LIVE"}
+              <span className={`pill ${health.configured ? "live" : "disconnected"}`}>
+                {health.configured ? "LIVE" : "NOT CONFIGURED"}
               </span>
               <span className="repo">{health.repo || "repo unset"}</span>
             </>
