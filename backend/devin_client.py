@@ -15,13 +15,9 @@ import time
 import uuid
 from typing import Any
 
-import logging
-
 import httpx
 
 from config import Settings
-
-logger = logging.getLogger("devin_client")
 
 
 class DevinClient:
@@ -97,9 +93,7 @@ class DevinClient:
             )
             resp.raise_for_status()
             data = resp.json()
-        sessions = data.get("sessions", [])
-        logger.info("list_sessions(tags=%s) returned %d sessions", tags, len(sessions))
-        return sessions
+        return data.get("sessions", [])
 
     async def stop_session(self, session_id: str) -> None:
         """Stop a running session via DELETE (session ID needs devin- prefix)."""
