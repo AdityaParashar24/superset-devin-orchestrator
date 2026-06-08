@@ -21,11 +21,21 @@ Devin sessions**, each with a role-specific prompt and ACU budget:
 |-------|---------------|-----------|--------|
 | **Triage** | read-only | analyze only — no edits, no PR | strict JSON readiness report |
 | **Remediation** | code-changing | edit code, run tests, open a PR | a pull request |
-| **Review** | comment-only | review the PR — no merge, no push | a verdict |
+| **Review** | comment-only (auto-started) | review the PR — no merge, no push | a verdict |
 
 Between **Triage** and **Remediation** there is a **human approval gate**: a maintainer
-clicks *Approve* in the dashboard (or updates the issue on GitHub with clarification
-and re-triages).
+clicks *Approve* in the dashboard, or adds the `devin-remediate` label on GitHub.
+**Review** auto-starts when the PR is opened — no human gate needed.
+
+### Two trigger paths
+
+| Path | How it starts | What happens |
+|------|---------------|--------------|
+| **Label (event-driven)** | Human adds `devin-triage` or `devin-remediate` label on GitHub | GitHub Action fires → calls Devin API with full prompt + schema + ACU limits → comments session link on issue → backend discovers session by tag |
+| **Dashboard (manual)** | Human enters issue # and clicks "Run triage" or "Approve" | Backend calls Devin API directly |
+
+Both paths converge at the same state machine. The dashboard shows the same data
+regardless of how the session was triggered.
 
 ### Why this design
 
@@ -39,30 +49,92 @@ and re-triages).
 - **Human clarification loop.** When triage surfaces questions, the human answers via a
   GitHub comment. On re-triage or approval, the orchestrator re-fetches the issue with
   comments so the next agent sees the full conversation.
+- **Event-driven + manual.** Labels on GitHub trigger sessions instantly via a GitHub
+  Action. The dashboard provides a manual fallback. Both paths are first-class.
 
 ---
 
 ## Architecture
 
 ```
-   React + Vite dashboard  ◄──polls /api/issues, /api/summary──────── FastAPI backend
-        │  (Run triage / Approve / Re-triage)                             │
-        └────────────────────POST /api/triage|remediate──────────────────►│
-                                                                          ▼
-                                                            Devin REST API (v3)
-                                                   triage · remediation · review sessions
+┌──────────────────────────┐          ┌──────────────────────────┐
+│  GitHub Issue             │          │  React + Vite Dashboard  │
+│                          │          │  localhost:5173           │
+│  Human adds label:       │          │                          │
+│  devin-triage or         │          │  "Run triage" / "Approve"│
+│  devin-remediate         │          │  / "Re-triage" buttons   │
+└──────────┬───────────────┘          └──────────┬───────────────┘
+           │                                     │
+           ▼                                     │
+┌──────────────────────────┐   polls /api/issues │
+│  GitHub Action            │   POST /api/triage  │
+│  (in Superset fork)       │   POST /api/remediate
+│                          │                     │
+│  Calls Devin API directly│                     │
+│  Tags: devin-orchestrator│                     │
+│  + role + issue-N        │                     │
+└──────────┬───────────────┘                     │
+           │                                     │
+           │  (backend discovers                 │
+           │   via tag polling)                  │
+           ▼                                     ▼
+┌──────────────────────────────────────────────────────────────┐
+│                    FastAPI Backend (port 8000)                │
+│                                                              │
+│  orchestrator.py  — state machine, discover_sessions(),      │
+│                     triage/review schemas, stage handlers     │
+│  devin_client.py  — create/get/list/stop session             │
+│  github_client.py — get_issue, add_label, comment            │
+│  store.py         — SQLite persistence                       │
+│  prompts/         — triage.md, remediation.md, review.md     │
+└──────────┬──────────────────────────────────┬────────────────┘
+           │                                  │
+           ▼                                  ▼
+┌──────────────────────┐        ┌──────────────────────────┐
+│   Devin REST API     │        │     GitHub REST API      │
+│   api.devin.ai       │        │     api.github.com       │
+└──────────────────────┘        └──────────────────────────┘
 ```
 
-- **backend/** — FastAPI app, SQLite store, orchestrator state machine, Devin + GitHub
-  clients, and the three role prompts.
-- **frontend/** — React + Vite dashboard (KPI cards, pipeline table, per-issue timeline).
+### Session discovery
+
+Every Devin session is tagged `["devin-orchestrator", "{role}", "issue-{N}"]`.
+
+On every poll cycle (~20s), the backend calls `list_sessions()`, filters by the
+`devin-orchestrator` tag, and matches sessions to issues via `issue-N` tags. Sessions
+started by the GitHub Action are adopted into the state machine identically to those
+started from the dashboard.
 
 ### Pipeline states
 
 ```
-new → triaging → triaged → approved → remediating → pr_open → reviewing → reviewed
-                                  └──────────► needs_attention (on error / no PR)
+new → triaging → triaged → remediating → pr_open → reviewing → reviewed
+                    │  ▲
+                    │  │ (re-triage)
+                    ▼  │
+                [human decision]
+
+Any state → needs_attention (on error / no PR / invalid output)
 ```
+
+### Labels (audit trail on GitHub issue)
+
+| When | Label added |
+|------|-------------|
+| Triage starts | `devin-triage` |
+| Triage completes | `devin-triaged` |
+| Remediation approved | `devin-remediate` |
+| PR opened | `devin-pr-open` |
+| Review completes | `devin-reviewed` |
+
+### Comments (audit trail on GitHub issue)
+
+| When | Comment posted |
+|------|----------------|
+| Triage session starts | "Devin triage session started: {url}" |
+| Triage completes | Triage report (readiness, risks, clarification, likely files) |
+| Remediation session starts | "Devin remediation session started: {url}" |
+| Review completes | Review verdict + concerns + follow-ups |
 
 ---
 
@@ -95,6 +167,17 @@ npm run dev           # http://localhost:5173 (proxies /api to :8000)
 
 Open http://localhost:5173.
 
+### 4. (Optional) Event-driven label trigger
+
+To enable the label path, add the GitHub Action to your **Superset fork**
+(not this repo):
+
+1. Copy `devin-on-label.yml` to `<superset-fork>/.github/workflows/`
+2. Add repo secrets: `DEVIN_API_KEY`, `DEVIN_ORG_ID`
+3. Create labels on the fork: `devin-triage`, `devin-remediate`
+
+Now applying `devin-triage` to an issue fires a triage session automatically.
+
 ---
 
 ## Demo mode vs. live mode
@@ -123,6 +206,7 @@ The console runs in two modes, controlled by `DEMO_MODE` in `.env`:
 | POST | `/api/issues` | track a new issue |
 | POST | `/api/triage/{n}` | start (or re-run) a triage session |
 | POST | `/api/remediate/{n}` | approve → start remediation (the human gate) |
+| POST | `/api/review/{n}` | start a review session (normally auto-started) |
 | POST | `/api/poll` | force a poll tick |
 
 ---
@@ -144,12 +228,15 @@ superset-devin-orchestrator/
 ├── .env.example
 ├── backend/
 │   ├── main.py            # FastAPI app + routes + poll loop
-│   ├── orchestrator.py    # state machine, triage/review schemas, stage handlers
+│   ├── orchestrator.py    # state machine, discover_sessions(), triage/review schemas
 │   ├── devin_client.py    # Devin REST wrapper (+ DEMO_MODE simulator)
 │   ├── github_client.py   # issue/label/comment (+ DEMO_MODE no-op)
 │   ├── store.py           # SQLite CRUD
 │   ├── models.py          # Pydantic models + enums
 │   ├── config.py          # .env loader
-│   └── prompts/{triage,remediation,review}.md
+│   └── prompts/
+│       ├── triage.md      # read-only analysis prompt
+│       ├── remediation.md # fix + open PR prompt
+│       └── review.md      # PR review prompt
 └── frontend/              # React + Vite dashboard
 ```
