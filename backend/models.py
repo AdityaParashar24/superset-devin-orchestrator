@@ -1,4 +1,4 @@
-"""Domain models and enums for the enablement console."""
+"""Domain models and enums for the Devin Orchestrator."""
 
 from __future__ import annotations
 

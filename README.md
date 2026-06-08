@@ -1,4 +1,4 @@
-# Superset Maintenance Enablement Console
+# Devin Orchestrator
 
 A human-in-the-loop control plane that turns bounded **Apache Superset** maintenance
 issues into reviewable pull requests using **Devin** — with a human approval gate at
@@ -79,7 +79,7 @@ regardless of how the session was triggered.
            │   via tag polling)                  │
            ▼                                     ▼
 ┌──────────────────────────────────────────────────────────────┐
-│                    FastAPI Backend (port 8000)                │
+│                    FastAPI Backend (port 8080)                │
 │                                                              │
 │  orchestrator.py  — state machine, discover_sessions(),      │
 │                     triage/review schemas, stage handlers     │
@@ -155,14 +155,14 @@ cp .env.example .env
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+uvicorn main:app --reload --port 8080
 ```
 
 ### 3. Frontend
 ```bash
 cd frontend
 npm install
-npm run dev           # http://localhost:5173 (proxies /api to :8000)
+npm run dev           # http://localhost:5173 (proxies /api to :8080)
 ```
 
 Open http://localhost:5173.

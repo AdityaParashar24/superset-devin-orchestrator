@@ -59,7 +59,7 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div>
-          <h1>Superset Maintenance Enablement Console</h1>
+          <h1>Devin Orchestrator</h1>
           <p className="subtitle">
             Autonomous maintenance workflow with human approval gates · Devin
             recommends → human approves → Devin executes → Devin reviews → human
