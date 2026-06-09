@@ -241,6 +241,8 @@ class Orchestrator:
             logger.warning("Could not list Devin sessions: %s", exc)
             return
 
+        logger.info("discover_sessions: found %d tagged sessions", len(sessions))
+
         known_sids = set()
         for issue in self.store.list_issues():
             for sid in (issue.triage_session_id, issue.remediation_session_id):
@@ -271,10 +273,13 @@ class Orchestrator:
                 # Only skip exited sessions to avoid resurrecting old
                 # completed pipelines on a fresh DB.
                 if status == "exit":
+                    logger.info("discover: skipping exited session %s for issue #%s", sid[:8], issue_num)
                     continue
                 try:
                     issue = await self.ingest_issue(issue_num)
-                except Exception:  # noqa: BLE001
+                    logger.info("discover: ingested issue #%s from session %s (status=%s)", issue_num, sid[:8], status)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("discover: failed to ingest issue #%s: %s", issue_num, exc)
                     continue
 
             url = s.get("url", f"https://app.devin.ai/sessions/{sid}")
