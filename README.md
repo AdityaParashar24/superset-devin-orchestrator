@@ -135,21 +135,25 @@ Any state → needs_attention (on error / no PR / invalid output)
 
 ---
 
-## Required credentials
+## Configuration
 
-All four must be set in `.env`:
+### Secrets (`.env`)
+
+These go in `.env` (gitignored) — the only file you need to edit:
 
 | Variable | Where to get it |
 |----------|----------------|
 | `DEVIN_API_KEY` | app.devin.ai → Settings → Service Users |
 | `DEVIN_ORG_ID` | app.devin.ai → Settings → Organization (starts with `org-`) |
 | `GITHUB_TOKEN` | GitHub PAT with `issues:write` + `pull_requests:read` on the target repo |
-| `GITHUB_REPO` | `owner/repo` of the Superset fork (e.g. `AdityaParashar24/superset`) |
 
-### Optional settings
+### Non-secret config (`docker-compose.yml`)
+
+These live directly in `docker-compose.yml` under `environment:`:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `GITHUB_REPO` | `AdityaParashar24/superset` | `owner/repo` of the Superset fork |
 | `POLL_INTERVAL_SECONDS` | `8` | How often the backend polls Devin for session updates |
 | `TRIAGE_MAX_ACU` | `5` | Max ACU budget for triage sessions |
 | `REMEDIATION_MAX_ACU` | `30` | Max ACU budget for remediation sessions |
@@ -165,7 +169,8 @@ cd superset-devin-orchestrator
 cp .env.example .env
 ```
 
-Edit `.env` — fill in the four required values (see [Required credentials](#required-credentials)).
+Edit `.env` — fill in the three secrets (see [Configuration](#configuration)).
+Optionally edit `GITHUB_REPO` in `docker-compose.yml` if using a different fork.
 
 ### 2. Run
 ```bash
@@ -194,7 +199,8 @@ docker compose up --build     # starts fresh
 ### 1. Configure
 ```bash
 cp .env.example .env
-# edit .env with your credentials (see "Required credentials" above)
+# edit .env with your secrets (see "Configuration" above)
+# also set GITHUB_REPO in .env (or export it) since docker-compose isn't used here
 ```
 
 ### 2. Backend
