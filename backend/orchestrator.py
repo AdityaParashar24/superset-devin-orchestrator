@@ -199,11 +199,6 @@ class Orchestrator:
         if status in ("exit", "blocked"):
             await handler(issue, session)
         elif status == "running" and self._session_looks_done(issue, session):
-            logger.info("Session %s produced output while running; stopping.", session_id)
-            try:
-                await self.devin.stop_session(session_id)
-            except Exception:  # noqa: BLE001
-                logger.warning("Could not stop session %s", session_id)
             await handler(issue, session)
 
     async def _on_triage_done(self, issue: Issue, session: dict) -> None:
