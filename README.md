@@ -5,43 +5,42 @@ issues into reviewable pull requests using **Devin** — with a human approval g
 every risky step.
 
 > **Operating principle:** Devin *recommends*, a human *approves*, Devin *executes*,
-> Devin *self-reviews*, a human *merges*. No code is changed without explicit human
-> approval.
-
-![pipeline](docs/dashboard.png)
+> a human *merges*. No code is changed without explicit human approval. Devin's
+> built-in Review bot auto-reviews every PR.
 
 ---
 
 ## What it does
 
-For each GitHub issue, the console runs a three-stage pipeline backed by **separate
+For each GitHub issue, the console runs a two-stage pipeline backed by **separate
 Devin sessions**, each with a role-specific prompt and ACU budget:
 
 | Stage | Devin session | Allowed to | Output |
 |-------|---------------|-----------|--------|
 | **Triage** | read-only | analyze only — no edits, no PR | strict JSON readiness report |
 | **Remediation** | code-changing | edit code, run tests, open a PR | a pull request |
-| **Review** | comment-only (auto-started) | review the PR — no merge, no push | a verdict |
 
 Between **Triage** and **Remediation** there is a **human approval gate**: a maintainer
 clicks *Approve* in the dashboard, or adds the `devin-remediate` label on GitHub.
-**Review** auto-starts when the PR is opened — no human gate needed.
+
+Once remediation opens a PR, Devin's **built-in Review bot** automatically reviews it
+— no orchestrator-managed review session needed.
 
 ### Two trigger paths
 
 | Path | How it starts | What happens |
 |------|---------------|--------------|
 | **Label (event-driven)** | Human adds `devin-triage` or `devin-remediate` label on GitHub | GitHub Action fires → calls Devin API with full prompt + schema + ACU limits → comments session link on issue → backend discovers session by tag |
-| **Dashboard (manual)** | Human enters issue # and clicks "Run triage" or "Approve" | Backend calls Devin API directly |
+| **Dashboard (manual)** | Human enters issue # and clicks "Run triage" or "Approve" | Backend adds label → same Action fires |
 
 Both paths converge at the same state machine. The dashboard shows the same data
 regardless of how the session was triggered.
 
 ### Why this design
 
-- **Structured output, not prose parsing.** Triage and review sessions are forced to
-  return JSON matching a JSON Schema via Devin's `structured_output_schema`, so the
-  orchestrator gets deterministic fields instead of scraping free text.
+- **Structured output, not prose parsing.** The triage session is forced to return JSON
+  matching a JSON Schema via Devin's `structured_output_schema`, so the orchestrator
+  gets deterministic fields instead of scraping free text.
 - **The PR comes from the session, not GitHub scraping.** The remediation session object
   exposes `pull_requests[]`, so the orchestrator reads the PR URL/state directly.
 - **Bounded autonomy.** Each role has a `max_acu_limit` so a runaway session can't burn
@@ -50,8 +49,8 @@ regardless of how the session was triggered.
   GitHub comment.
 - **Single session creation path.** Both the dashboard and direct label application on
   GitHub converge on the same GitHub Action to create Devin sessions. The backend only
-  adds labels — it never calls the Devin API to create sessions directly (except for
-  the auto-review stage). This eliminates duplicate sessions.
+  adds labels — it never calls the Devin API to create sessions directly. This eliminates
+  duplicate sessions.
 
 ---
 
@@ -83,11 +82,11 @@ regardless of how the session was triggered.
 │                    FastAPI Backend (port 8080)                │
 │                                                              │
 │  orchestrator.py  — state machine, discover_sessions(),      │
-│                     review schema, stage handlers             │
-│  devin_client.py  — create/get/list/stop session             │
+│                     stage handlers                            │
+│  devin_client.py  — create/get/list session                  │
 │  github_client.py — get_issue, add_label, comment            │
 │  store.py         — SQLite persistence                       │
-│  prompts/         — triage.md, remediation.md, review.md     │
+│  prompts/         — triage.md, remediation.md                │
 └──────────┬──────────────────────────────────┬────────────────┘
            │                                  │
            ▼                                  ▼
@@ -109,7 +108,7 @@ sessions indirectly by adding labels, which fire the same GitHub Action.
 ### Pipeline states
 
 ```
-new → triaging → triaged → remediating → pr_open → reviewing → reviewed
+new → triaging → triaged → remediating → pr_open
                     │
                     ▼
                 [human approval]
@@ -125,7 +124,6 @@ Any state → needs_attention (on error / no PR / invalid output)
 | Triage completes | `devin-triaged` |
 | Remediation approved | `devin-remediate` |
 | PR opened | `devin-pr-open` |
-| Review completes | `devin-reviewed` |
 
 ### Comments (audit trail on GitHub issue)
 
@@ -134,7 +132,6 @@ Any state → needs_attention (on error / no PR / invalid output)
 | Triage session starts | "Devin triage session started: {url}" |
 | Triage completes | Triage report (readiness, risks, clarification, likely files) |
 | Remediation session starts | "Devin remediation session started: {url}" |
-| Review completes | Review verdict + concerns + follow-ups |
 
 ---
 

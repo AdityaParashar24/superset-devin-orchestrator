@@ -28,7 +28,6 @@ class Settings:
     poll_interval_seconds: int
     triage_max_acu: int
     remediation_max_acu: int
-    review_max_acu: int
 
     @property
     def configured(self) -> bool:
@@ -48,7 +47,6 @@ def get_settings() -> Settings:
         poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "20")),
         triage_max_acu=int(os.getenv("TRIAGE_MAX_ACU", "5")),
         remediation_max_acu=int(os.getenv("REMEDIATION_MAX_ACU", "30")),
-        review_max_acu=int(os.getenv("REVIEW_MAX_ACU", "10")),
     )
 
 

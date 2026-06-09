@@ -5,8 +5,6 @@ export type Stage =
   | "approved"
   | "remediating"
   | "pr_open"
-  | "reviewing"
-  | "reviewed"
   | "needs_attention";
 
 export interface Issue {
@@ -24,10 +22,8 @@ export interface Issue {
   clarification_needed: string | null;
   triage_session_url: string | null;
   remediation_session_url: string | null;
-  review_session_url: string | null;
   pr_url: string | null;
   pr_state: string | null;
-  review_verdict: string | null;
   failure_reason: string | null;
   created_at: string | null;
   updated_at: string | null;
@@ -38,7 +34,6 @@ export interface Summary {
   triaged: number;
   approved: number;
   prs_open: number;
-  reviewed: number;
   needs_attention: number;
 }
 

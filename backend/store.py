@@ -32,18 +32,15 @@ CREATE TABLE IF NOT EXISTS issues (
     triage_session_url      TEXT,
     remediation_session_id  TEXT,
     remediation_session_url TEXT,
-    review_session_id       TEXT,
-    review_session_url      TEXT,
     pr_url                  TEXT,
     pr_state                TEXT,
-    review_verdict          TEXT,
     failure_reason          TEXT,
     created_at              TEXT,
     updated_at              TEXT
 );
 """
 
-_IN_FLIGHT = {Stage.TRIAGING.value, Stage.REMEDIATING.value, Stage.REVIEWING.value}
+_IN_FLIGHT = {Stage.TRIAGING.value, Stage.REMEDIATING.value}
 
 
 def _now() -> str:
@@ -85,15 +82,15 @@ class Store:
                     github_issue_num, title, body, state, readiness_score,
                     readiness_level, recommendation, likely_files, suggested_validation,
                     risk_notes, remediation_prompt, clarification_needed, triage_session_id, triage_session_url,
-                    remediation_session_id, remediation_session_url, review_session_id,
-                    review_session_url, pr_url, pr_state, review_verdict, failure_reason,
+                    remediation_session_id, remediation_session_url,
+                    pr_url, pr_state, failure_reason,
                     created_at, updated_at
                 ) VALUES (
                     :github_issue_num, :title, :body, :state, :readiness_score,
                     :readiness_level, :recommendation, :likely_files, :suggested_validation,
                     :risk_notes, :remediation_prompt, :clarification_needed, :triage_session_id, :triage_session_url,
-                    :remediation_session_id, :remediation_session_url, :review_session_id,
-                    :review_session_url, :pr_url, :pr_state, :review_verdict, :failure_reason,
+                    :remediation_session_id, :remediation_session_url,
+                    :pr_url, :pr_state, :failure_reason,
                     :created_at, :updated_at
                 )
                 ON CONFLICT(github_issue_num) DO UPDATE SET
@@ -112,11 +109,8 @@ class Store:
                     triage_session_url=excluded.triage_session_url,
                     remediation_session_id=excluded.remediation_session_id,
                     remediation_session_url=excluded.remediation_session_url,
-                    review_session_id=excluded.review_session_id,
-                    review_session_url=excluded.review_session_url,
                     pr_url=excluded.pr_url,
                     pr_state=excluded.pr_state,
-                    review_verdict=excluded.review_verdict,
                     failure_reason=excluded.failure_reason,
                     updated_at=excluded.updated_at
                 """,
