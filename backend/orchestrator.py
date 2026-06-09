@@ -341,19 +341,26 @@ class Orchestrator:
 
             url = s.get("url", f"https://app.devin.ai/sessions/{sid}")
 
+            # Only adopt a session if the issue is in (or past) the
+            # expected stage for that role.  This prevents a restart from
+            # attaching remediation/review URLs to an issue still triaging.
             if is_triage and not issue.triage_session_id:
                 issue.triage_session_id = sid
                 issue.triage_session_url = url
                 if issue.state == Stage.NEW:
                     issue.state = Stage.TRIAGING
                 self.store.upsert_issue(issue)
-            elif is_remediation and not issue.remediation_session_id:
+            elif is_remediation and not issue.remediation_session_id and issue.state in (
+                Stage.TRIAGED, Stage.APPROVED, Stage.REMEDIATING,
+            ):
                 issue.remediation_session_id = sid
                 issue.remediation_session_url = url
                 if issue.state in (Stage.TRIAGED, Stage.APPROVED):
                     issue.state = Stage.REMEDIATING
                 self.store.upsert_issue(issue)
-            elif is_review and not issue.review_session_id:
+            elif is_review and not issue.review_session_id and issue.state in (
+                Stage.PR_OPEN, Stage.REVIEWING,
+            ):
                 issue.review_session_id = sid
                 issue.review_session_url = url
                 if issue.state == Stage.PR_OPEN:
