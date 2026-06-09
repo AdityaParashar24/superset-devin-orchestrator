@@ -59,6 +59,16 @@ class GitHubClient:
             issue["body"] = (issue.get("body") or "") + "\n\n---\n## Comments\n" + comment_text
         return issue
 
+    async def get_labels(self, num: int) -> set[str]:
+        """Return the set of label names currently on an issue."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(
+                f"{self.base}/repos/{self.repo}/issues/{num}/labels",
+                headers=self._headers,
+            )
+            resp.raise_for_status()
+            return {lbl["name"] for lbl in resp.json()}
+
     async def add_label(self, num: int, label: str) -> None:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
