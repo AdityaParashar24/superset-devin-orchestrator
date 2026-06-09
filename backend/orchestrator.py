@@ -166,9 +166,7 @@ class Orchestrator:
             issue.readiness_level = report.readiness_level.value
             issue.recommendation = report.recommendation
             issue.likely_files = report.likely_files
-            issue.suggested_validation = report.suggested_validation
             issue.risk_notes = report.risk_notes
-            issue.remediation_prompt = report.remediation_prompt
             issue.clarification_needed = report.clarification_needed
             issue.state = Stage.TRIAGED
         except Exception as exc:  # noqa: BLE001

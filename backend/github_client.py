@@ -15,7 +15,6 @@ from config import Settings
 
 LABEL_TRIAGE = "devin-triage"
 LABEL_REMEDIATE = "devin-remediate"
-LABEL_GENERATED = "devin-generated"
 
 
 class GitHubClient:
@@ -40,24 +39,6 @@ class GitHubClient:
             )
             resp.raise_for_status()
             return resp.json()
-
-    async def get_issue_with_comments(self, num: int) -> dict[str, Any]:
-        """Fetch issue body + all comments, merged into a single body string."""
-        issue = await self.get_issue(num)
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(
-                f"{self.base}/repos/{self.repo}/issues/{num}/comments",
-                headers=self._headers,
-            )
-            resp.raise_for_status()
-            comments = resp.json()
-        if comments:
-            comment_text = "\n\n".join(
-                f"**Comment by {c['user']['login']}:**\n{c['body']}"
-                for c in comments
-            )
-            issue["body"] = (issue.get("body") or "") + "\n\n---\n## Comments\n" + comment_text
-        return issue
 
     async def get_labels(self, num: int) -> set[str]:
         """Return the set of label names currently on an issue."""

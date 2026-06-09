@@ -24,9 +24,7 @@ CREATE TABLE IF NOT EXISTS issues (
     readiness_level         TEXT,
     recommendation          TEXT,
     likely_files            TEXT DEFAULT '[]',
-    suggested_validation    TEXT,
     risk_notes              TEXT,
-    remediation_prompt      TEXT,
     clarification_needed    TEXT DEFAULT '',
     triage_session_id       TEXT,
     triage_session_url      TEXT,
@@ -80,15 +78,15 @@ class Store:
                 """
                 INSERT INTO issues (
                     github_issue_num, title, body, state, readiness_score,
-                    readiness_level, recommendation, likely_files, suggested_validation,
-                    risk_notes, remediation_prompt, clarification_needed, triage_session_id, triage_session_url,
+                    readiness_level, recommendation, likely_files,
+                    risk_notes, clarification_needed, triage_session_id, triage_session_url,
                     remediation_session_id, remediation_session_url,
                     pr_url, pr_state, failure_reason,
                     created_at, updated_at
                 ) VALUES (
                     :github_issue_num, :title, :body, :state, :readiness_score,
-                    :readiness_level, :recommendation, :likely_files, :suggested_validation,
-                    :risk_notes, :remediation_prompt, :clarification_needed, :triage_session_id, :triage_session_url,
+                    :readiness_level, :recommendation, :likely_files,
+                    :risk_notes, :clarification_needed, :triage_session_id, :triage_session_url,
                     :remediation_session_id, :remediation_session_url,
                     :pr_url, :pr_state, :failure_reason,
                     :created_at, :updated_at
@@ -101,9 +99,7 @@ class Store:
                     readiness_level=excluded.readiness_level,
                     recommendation=excluded.recommendation,
                     likely_files=excluded.likely_files,
-                    suggested_validation=excluded.suggested_validation,
                     risk_notes=excluded.risk_notes,
-                    remediation_prompt=excluded.remediation_prompt,
                     clarification_needed=excluded.clarification_needed,
                     triage_session_id=excluded.triage_session_id,
                     triage_session_url=excluded.triage_session_url,
@@ -140,5 +136,3 @@ class Store:
                 tuple(_IN_FLIGHT),
             ).fetchall()
         return [self._row_to_issue(r) for r in rows]
-
-

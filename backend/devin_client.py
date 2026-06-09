@@ -1,10 +1,8 @@
 """Thin async wrapper around the Devin REST API (v3).
 
 Only the endpoints needed by the orchestrator:
-  * POST /organizations/{org}/sessions          -> create a session
   * GET  /organizations/{org}/sessions/{id}     -> poll status, PR, structured output
   * GET  /organizations/{org}/sessions          -> list sessions (for discovery)
-  * DELETE /organizations/{org}/sessions/{id}   -> stop a session
 """
 
 from __future__ import annotations
@@ -28,39 +26,6 @@ class DevinClient:
             "Authorization": f"Bearer {self.settings.devin_api_key}",
             "Content-Type": "application/json",
         }
-
-    async def create_session(
-        self,
-        prompt: str,
-        repos: list[str],
-        *,
-        title: str | None = None,
-        playbook_id: str | None = None,
-        max_acu_limit: int | None = None,
-        structured_output_schema: dict[str, Any] | None = None,
-        tags: list[str] | None = None,
-    ) -> dict[str, Any]:
-        body: dict[str, Any] = {"prompt": prompt, "repos": repos}
-        if title:
-            body["title"] = title
-        if playbook_id:
-            body["playbook_id"] = playbook_id
-        if max_acu_limit:
-            body["max_acu_limit"] = max_acu_limit
-        if structured_output_schema:
-            body["structured_output_schema"] = structured_output_schema
-            body["structured_output_required"] = True
-        if tags:
-            body["tags"] = tags
-
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{self.base}/organizations/{self.org_id}/sessions",
-                headers=self._headers,
-                json=body,
-            )
-            resp.raise_for_status()
-            return resp.json()
 
     async def get_session(self, session_id: str) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=60) as client:
@@ -90,13 +55,3 @@ class DevinClient:
             return all_sessions
         tag_set = set(tags)
         return [s for s in all_sessions if tag_set.issubset(set(s.get("tags") or []))]
-
-    async def stop_session(self, session_id: str) -> None:
-        """Stop a running session via DELETE (session ID needs devin- prefix)."""
-        devin_id = session_id if session_id.startswith("devin-") else f"devin-{session_id}"
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.delete(
-                f"{self.base}/organizations/{self.org_id}/sessions/{devin_id}",
-                headers=self._headers,
-            )
-            resp.raise_for_status()

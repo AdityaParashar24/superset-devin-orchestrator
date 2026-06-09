@@ -16,9 +16,7 @@ export interface Issue {
   readiness_level: string | null;
   recommendation: string | null;
   likely_files: string[];
-  suggested_validation: string | null;
   risk_notes: string | null;
-  remediation_prompt: string | null;
   clarification_needed: string | null;
   triage_session_url: string | null;
   remediation_session_url: string | null;

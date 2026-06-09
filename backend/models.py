@@ -32,9 +32,7 @@ class TriageReport(BaseModel):
     readiness_level: ReadinessLevel
     recommendation: str
     likely_files: list[str] = Field(default_factory=list)
-    suggested_validation: str = ""
     risk_notes: str = ""
-    remediation_prompt: str = ""
     clarification_needed: str = ""
 
 
@@ -50,9 +48,7 @@ class Issue(BaseModel):
     readiness_level: str | None = None
     recommendation: str | None = None
     likely_files: list[str] = Field(default_factory=list)
-    suggested_validation: str | None = None
     risk_notes: str | None = None
-    remediation_prompt: str | None = None
     clarification_needed: str | None = None
     triage_session_id: str | None = None
     triage_session_url: str | None = None

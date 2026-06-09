@@ -24,8 +24,6 @@ class Settings:
     github_repo: str
     db_path: str
     poll_interval_seconds: int
-    triage_max_acu: int
-    remediation_max_acu: int
 
     @property
     def configured(self) -> bool:
@@ -43,8 +41,6 @@ def get_settings() -> Settings:
         github_repo=os.getenv("GITHUB_REPO", ""),
         db_path=os.getenv("DB_PATH", "orchestrator.db"),
         poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "8")),
-        triage_max_acu=int(os.getenv("TRIAGE_MAX_ACU", "5")),
-        remediation_max_acu=int(os.getenv("REMEDIATION_MAX_ACU", "30")),
     )
 
 
