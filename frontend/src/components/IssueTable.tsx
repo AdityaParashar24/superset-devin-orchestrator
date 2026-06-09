@@ -32,14 +32,9 @@ function ActionCell({
   }
   if (issue.state === "triaged") {
     return (
-      <div style={{ display: "flex", gap: "6px" }}>
-        <button disabled={isBusy} onClick={() => onTriage(n)}>
-          Re-triage
-        </button>
-        <button className="primary" disabled={isBusy} onClick={() => onApprove(n)}>
-          {isBusy ? "…" : "Approve"}
-        </button>
-      </div>
+      <button className="primary" disabled={isBusy} onClick={() => onApprove(n)}>
+        {isBusy ? "…" : "Approve"}
+      </button>
     );
   }
   return <span className="muted">—</span>;
