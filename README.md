@@ -108,12 +108,10 @@ sessions indirectly by adding labels, which fire the same GitHub Action.
 ### Pipeline states
 
 ```
-new → triaging → triaged → remediating → pr_open
-                    │
-                    ▼
-                [human approval]
-
-Any state → needs_attention (on error / no PR / invalid output)
+new → triaging → triaged → [human approval] → remediating → pr_open
+                                                     │
+                                                     ▼
+                              needs_attention (on error / no PR / invalid output)
 ```
 
 ### Labels (audit trail on GitHub issue)
