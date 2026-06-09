@@ -59,8 +59,8 @@ regardless of how the session was triggered.
 ```
 ┌──────────────────────────┐          ┌──────────────────────────┐
 │  GitHub Issue             │          │  React + Vite Dashboard  │
-│                          │          │  localhost:3000 (Docker)  │
-│  Human adds label:       │          │  localhost:5173 (dev)     │
+│                          │          │  localhost:3000           │
+│  Human adds label:       │          │                          │
 │  devin-triage or         │          │                          │
 │  devin-remediate         │          │  "Run triage" / "Approve"│
 └──────────┬───────────────┘          └──────────┬───────────────┘
@@ -151,7 +151,7 @@ Non-secret config (`GITHUB_REPO`, poll interval, ACU limits) lives in `docker-co
 
 ---
 
-## Quick start (Docker — recommended)
+## Quick start
 
 ### 1. Clone & configure
 ```bash
@@ -161,7 +161,7 @@ cp .env.example .env
 ```
 
 Edit `.env` — fill in the three secrets (see [Configuration](#configuration)).
-Optionally edit `GITHUB_REPO` in `docker-compose.yml` if using a different fork.
+Edit `GITHUB_REPO` in `docker-compose.yml` if using a different fork.
 
 ### 2. Run
 ```bash
@@ -178,38 +178,6 @@ Open http://localhost:3000.
 docker compose down -v        # removes the DB volume
 docker compose up --build     # starts fresh
 ```
-
----
-
-## Quick start (without Docker)
-
-### 0. Prerequisites
-- Python 3.11+
-- Node 18+
-
-### 1. Configure
-```bash
-cp .env.example .env
-# edit .env with your secrets (see "Configuration" above)
-# also set GITHUB_REPO in .env (or export it) since docker-compose isn't used here
-```
-
-### 2. Backend
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8080
-```
-
-### 3. Frontend
-```bash
-cd frontend
-npm install
-npm run dev           # http://localhost:5173 (proxies /api to :8080)
-```
-
-Open http://localhost:5173.
 
 ---
 
@@ -258,7 +226,7 @@ Real, bounded issues in the fork that this orchestrator was designed around:
 
 ```
 superset-devin-orchestrator/
-├── .env.example             # All configurable env vars with comments
+├── .env.example             # Secrets only
 ├── docker-compose.yml       # One-command setup
 ├── backend/
 │   ├── main.py              # FastAPI app + routes + poll loop
@@ -276,7 +244,6 @@ superset-devin-orchestrator/
 └── frontend/
     ├── src/                 # React + TypeScript components
     ├── package.json
-    ├── vite.config.ts       # Dev proxy to backend :8080
     ├── Dockerfile           # Frontend container (nginx)
     └── nginx.conf           # Reverse proxy for /api → backend
 ```
