@@ -35,34 +35,6 @@ logger = logging.getLogger("orchestrator")
 
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
-# JSON Schema (Draft 7) the triage session must satisfy.
-TRIAGE_SCHEMA: dict = {
-    "type": "object",
-    "properties": {
-        "readiness_score": {"type": "integer", "minimum": 0, "maximum": 100},
-        "readiness_level": {"type": "string", "enum": ["High", "Medium", "Low"]},
-        "recommendation": {
-            "type": "string",
-            "enum": ["Proceed", "Needs human clarification", "Not suitable"],
-        },
-        "likely_files": {"type": "array", "items": {"type": "string"}},
-        "suggested_validation": {"type": "string"},
-        "risk_notes": {"type": "string"},
-        "remediation_prompt": {"type": "string"},
-        "clarification_needed": {"type": "string"},
-    },
-    "required": [
-        "readiness_score",
-        "readiness_level",
-        "recommendation",
-        "likely_files",
-        "suggested_validation",
-        "risk_notes",
-        "remediation_prompt",
-        "clarification_needed",
-    ],
-}
-
 REVIEW_SCHEMA: dict = {
     "type": "object",
     "properties": {
@@ -131,43 +103,29 @@ class Orchestrator:
 
     # ----- stage: triage ---------------------------------------------------
     async def start_triage(self, num: int) -> Issue:
+        """Add the devin-triage label; the GitHub Action creates the session.
+
+        The backend's ``discover_sessions()`` poll loop will adopt the session
+        once the Action starts it, and ``_advance()`` will process the result.
+        """
         issue = await self.ingest_issue(num)
-        # Reset prior triage data (supports re-triage)
-        issue.readiness_score = None
-        issue.readiness_level = None
-        issue.recommendation = None
-        issue.likely_files = []
-        issue.suggested_validation = None
-        issue.risk_notes = None
-        issue.remediation_prompt = None
-        issue.clarification_needed = None
-        prompt = _load_prompt("triage.md").format(
-            repo=self.repo,
-            issue_number=issue.github_issue_num,
-            issue_title=issue.title,
-            issue_body=issue.body or "(no description provided)",
-        )
-        session = await self.devin.create_session(
-            prompt=prompt,
-            repos=[self.repo],
-            title=f"Triage: Superset issue #{num}",
-            max_acu_limit=self.settings.triage_max_acu,
-            structured_output_schema=TRIAGE_SCHEMA,
-            tags=["devin-orchestrator", "triage", f"issue-{num}"],
-        )
-        issue.triage_session_id = session["session_id"]
-        issue.triage_session_url = session.get("url")
+        if issue.state not in (Stage.NEW,):
+            raise StageError(
+                f"Issue #{num} must be NEW to start triage (is {issue.state})."
+            )
         issue.state = Stage.TRIAGING
         issue.failure_reason = None
         self.store.upsert_issue(issue)
         await self._safe_add_label(num, LABEL_TRIAGE)
-        await self._safe_comment(
-            num, f"Devin triage session started: {issue.triage_session_url}"
-        )
         return issue
 
     # ----- stage: remediation (human approval gate) ------------------------
-    async def start_remediation(self, num: int, add_label: bool = True) -> Issue:
+    async def start_remediation(self, num: int) -> Issue:
+        """Add the devin-remediate label; the GitHub Action creates the session.
+
+        The backend's ``discover_sessions()`` poll loop will adopt the session
+        once the Action starts it, and ``_advance()`` will process the result.
+        """
         issue = self.store.get_issue(num)
         if issue is None:
             raise StageError(f"Issue #{num} is not tracked yet.")
@@ -175,42 +133,10 @@ class Orchestrator:
             raise StageError(
                 f"Issue #{num} must be TRIAGED before remediation (is {issue.state})."
             )
-
-        # Re-fetch issue with comments so remediation sees human clarification
-        try:
-            gh = await self.github.get_issue_with_comments(num)
-            issue.body = gh.get("body") or issue.body
-            self.store.upsert_issue(issue)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Could not re-fetch issue #%s with comments: %s", num, exc)
-
-        if add_label:
-            # Approval is recorded as the devin-remediate label on the issue.
-            await self._safe_add_label(num, LABEL_REMEDIATE)
-
-        prompt = _load_prompt("remediation.md").format(
-            repo=self.repo,
-            issue_number=issue.github_issue_num,
-            issue_title=issue.title,
-            issue_body=issue.body or "(no description provided)",
-            triage_report=_triage_report_text(issue),
-            suggested_validation=issue.suggested_validation or "the project's test suite",
-        )
-        session = await self.devin.create_session(
-            prompt=prompt,
-            repos=[self.repo],
-            title=f"Remediate: Superset issue #{num}",
-            max_acu_limit=self.settings.remediation_max_acu,
-            tags=["devin-orchestrator", "remediation", f"issue-{num}"],
-        )
-        issue.remediation_session_id = session["session_id"]
-        issue.remediation_session_url = session.get("url")
         issue.state = Stage.REMEDIATING
         issue.failure_reason = None
         self.store.upsert_issue(issue)
-        await self._safe_comment(
-            num, f"Devin remediation session started: {issue.remediation_session_url}"
-        )
+        await self._safe_add_label(num, LABEL_REMEDIATE)
         return issue
 
     # ----- stage: review ---------------------------------------------------
@@ -335,14 +261,13 @@ class Orchestrator:
         issue.state = Stage.REVIEWED
         self.store.upsert_issue(issue)
         await self._safe_add_label(issue.github_issue_num, LABEL_REVIEWED)
-        comment = f"### Review Verdict: {issue.review_verdict}\n\n"
         summary = out.get("summary", "")
         concerns = out.get("concerns", "")
         follow_ups = out.get("follow_ups", "")
-        if concerns and concerns != "None":
-            comment += f"**Concerns:** {concerns}\n\n"
-        if follow_ups and follow_ups != "None":
-            comment += f"**Follow-ups:** {follow_ups}\n"
+        comment = f"### Review Verdict: {issue.review_verdict}\n\n"
+        comment += f"**Summary:** {summary or 'No summary provided.'}\n\n"
+        comment += f"**Concerns:** {concerns or 'None'}\n\n"
+        comment += f"**Follow-ups:** {follow_ups or 'None'}\n"
         pr_num = self._pr_number_from_url(issue.pr_url)
         if pr_num:
             await self._safe_comment(pr_num, comment)

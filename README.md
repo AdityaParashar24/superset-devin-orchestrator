@@ -47,10 +47,11 @@ regardless of how the session was triggered.
 - **Bounded autonomy.** Each role has a `max_acu_limit` so a runaway session can't burn
   budget.
 - **Human clarification loop.** When triage surfaces questions, the human answers via a
-  GitHub comment. On re-triage or approval, the orchestrator re-fetches the issue with
-  comments so the next agent sees the full conversation.
-- **Event-driven + manual.** Labels on GitHub trigger sessions instantly via a GitHub
-  Action. The dashboard provides a manual fallback. Both paths are first-class.
+  GitHub comment.
+- **Single session creation path.** Both the dashboard and direct label application on
+  GitHub converge on the same GitHub Action to create Devin sessions. The backend only
+  adds labels — it never calls the Devin API to create sessions directly (except for
+  the auto-review stage). This eliminates duplicate sessions.
 
 ---
 
@@ -62,7 +63,7 @@ regardless of how the session was triggered.
 │                          │          │  localhost:5173           │
 │  Human adds label:       │          │                          │
 │  devin-triage or         │          │  "Run triage" / "Approve"│
-│  devin-remediate         │          │  / "Re-triage" buttons   │
+│  devin-remediate         │          │    buttons                 │
 └──────────┬───────────────┘          └──────────┬───────────────┘
            │                                     │
            ▼                                     │
@@ -82,7 +83,7 @@ regardless of how the session was triggered.
 │                    FastAPI Backend (port 8080)                │
 │                                                              │
 │  orchestrator.py  — state machine, discover_sessions(),      │
-│                     triage/review schemas, stage handlers     │
+│                     review schema, stage handlers             │
 │  devin_client.py  — create/get/list/stop session             │
 │  github_client.py — get_issue, add_label, comment            │
 │  store.py         — SQLite persistence                       │
@@ -102,17 +103,16 @@ Every Devin session is tagged `["devin-orchestrator", "{role}", "issue-{N}"]`.
 
 On every poll cycle (~20s), the backend calls `list_sessions()`, filters by the
 `devin-orchestrator` tag, and matches sessions to issues via `issue-N` tags. Sessions
-started by the GitHub Action are adopted into the state machine identically to those
-started from the dashboard.
+started by the GitHub Action are adopted into the state machine. The dashboard triggers
+sessions indirectly by adding labels, which fire the same GitHub Action.
 
 ### Pipeline states
 
 ```
 new → triaging → triaged → remediating → pr_open → reviewing → reviewed
-                    │  ▲
-                    │  │ (re-triage)
-                    ▼  │
-                [human decision]
+                    │
+                    ▼
+                [human approval]
 
 Any state → needs_attention (on error / no PR / invalid output)
 ```
