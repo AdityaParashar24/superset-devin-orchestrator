@@ -254,8 +254,5 @@ superset-devin-orchestrator/
 
 | Problem | Fix |
 |---------|-----|
-| Ghost issue reappears after restart | Old Devin sessions still exist. Run `docker compose down -v && docker compose up --build` to wipe the DB. The backend only auto-ingests from **running** sessions — old exited sessions won't resurrect. |
 | "Not configured" pill on dashboard | One or more of `DEVIN_API_KEY`, `DEVIN_ORG_ID`, `GITHUB_TOKEN` is empty in `.env`. |
-| Duplicate comments on GitHub issue | Ensure you're on the latest version — PR #15 added deduplication checks. |
-| Backend crash: "Incorrect number of bindings" | Ensure you're on the latest version — PR #16 fixed this. |
 | Triage session URL not appearing | The session is created asynchronously by the GitHub Action. Wait ~8s for the next poll cycle to discover it. |
