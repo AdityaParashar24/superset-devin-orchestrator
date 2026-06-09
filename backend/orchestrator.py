@@ -146,14 +146,16 @@ class Orchestrator:
         session = await self.devin.get_session(session_id)
         status = session.get("status")
 
-        if status in ("error", "suspended"):
+        if status == "error":
             issue.state = Stage.NEEDS_ATTENTION
             issue.failure_reason = session.get("status_detail") or status
             self.store.upsert_issue(issue)
             return
-        if status in ("exit", "blocked"):
+        if status in ("new", "claimed"):
+            return  # session hasn't started yet, no output
+        if status in ("exit", "suspended"):
             await handler(issue, session)
-        elif status == "running" and self._session_looks_done(issue, session):
+        elif status in ("running", "resuming") and self._session_looks_done(issue, session):
             await handler(issue, session)
 
     async def _on_triage_done(self, issue: Issue, session: dict) -> None:
@@ -266,9 +268,9 @@ class Orchestrator:
             status = s.get("status", "")
 
             if issue is None:
-                # Only auto-ingest from running sessions to avoid resurrecting
-                # issues from old exited sessions on a fresh DB.
-                if status not in ("running", "blocked"):
+                # Only skip exited sessions to avoid resurrecting old
+                # completed pipelines on a fresh DB.
+                if status == "exit":
                     continue
                 try:
                     issue = await self.ingest_issue(issue_num)
