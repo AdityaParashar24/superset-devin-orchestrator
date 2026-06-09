@@ -161,9 +161,6 @@ class Orchestrator:
         issue.failure_reason = None
         self.store.upsert_issue(issue)
         await self._safe_add_label(num, LABEL_TRIAGE)
-        await self._safe_comment(
-            num, f"Devin triage session started: {issue.triage_session_url}"
-        )
         return issue
 
     # ----- stage: remediation (human approval gate) ------------------------
@@ -208,9 +205,6 @@ class Orchestrator:
         issue.state = Stage.REMEDIATING
         issue.failure_reason = None
         self.store.upsert_issue(issue)
-        await self._safe_comment(
-            num, f"Devin remediation session started: {issue.remediation_session_url}"
-        )
         return issue
 
     # ----- stage: review ---------------------------------------------------
@@ -335,14 +329,13 @@ class Orchestrator:
         issue.state = Stage.REVIEWED
         self.store.upsert_issue(issue)
         await self._safe_add_label(issue.github_issue_num, LABEL_REVIEWED)
-        comment = f"### Review Verdict: {issue.review_verdict}\n\n"
         summary = out.get("summary", "")
         concerns = out.get("concerns", "")
         follow_ups = out.get("follow_ups", "")
-        if concerns and concerns != "None":
-            comment += f"**Concerns:** {concerns}\n\n"
-        if follow_ups and follow_ups != "None":
-            comment += f"**Follow-ups:** {follow_ups}\n"
+        comment = f"### Review Verdict: {issue.review_verdict}\n\n"
+        comment += f"**Summary:** {summary or 'No summary provided.'}\n\n"
+        comment += f"**Concerns:** {concerns or 'None'}\n\n"
+        comment += f"**Follow-ups:** {follow_ups or 'None'}\n"
         pr_num = self._pr_number_from_url(issue.pr_url)
         if pr_num:
             await self._safe_comment(pr_num, comment)
