@@ -44,7 +44,7 @@ def get_settings() -> Settings:
         github_token=os.getenv("GITHUB_TOKEN", ""),
         github_repo=os.getenv("GITHUB_REPO", ""),
         db_path=os.getenv("DB_PATH", str(BASE_DIR / "orchestrator.db")),
-        poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "20")),
+        poll_interval_seconds=int(os.getenv("POLL_INTERVAL_SECONDS", "8")),
         triage_max_acu=int(os.getenv("TRIAGE_MAX_ACU", "5")),
         remediation_max_acu=int(os.getenv("REMEDIATION_MAX_ACU", "30")),
     )

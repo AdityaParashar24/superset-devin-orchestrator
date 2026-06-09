@@ -100,7 +100,7 @@ regardless of how the session was triggered.
 
 Every Devin session is tagged `["devin-orchestrator", "{role}", "issue-{N}"]`.
 
-On every poll cycle (~20s), the backend calls `list_sessions()`, filters by the
+On every poll cycle (~8s), the backend calls `list_sessions()`, filters by the
 `devin-orchestrator` tag, and matches sessions to issues via `issue-N` tags. Sessions
 started by the GitHub Action are adopted into the state machine. The dashboard triggers
 sessions indirectly by adding labels, which fire the same GitHub Action.
@@ -183,9 +183,7 @@ The `owner/repo` of the Superset fork where issues live (e.g. `AdityaParashar24/
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `DEVIN_API_BASE` | `https://api.devin.ai/v3` | Devin API base URL |
-| `DB_PATH` | `orchestrator.db` | SQLite database path |
-| `POLL_INTERVAL_SECONDS` | `20` | How often the backend polls Devin for session updates |
+| `POLL_INTERVAL_SECONDS` | `8` | How often the backend polls Devin for session updates |
 | `TRIAGE_MAX_ACU` | `5` | Max ACU budget for triage sessions |
 | `REMEDIATION_MAX_ACU` | `30` | Max ACU budget for remediation sessions |
 
@@ -200,11 +198,11 @@ cd superset-devin-orchestrator
 cp .env.example .env
 ```
 
-Edit `.env` and fill in:
+Edit `.env` and fill in the four required values:
 ```env
-DEVIN_API_KEY=dv_su_...
-DEVIN_ORG_ID=org-...
-GITHUB_TOKEN=ghp_...
+DEVIN_API_KEY=dv_su_...       # Service user token from app.devin.ai
+DEVIN_ORG_ID=org-...          # Your org ID
+GITHUB_TOKEN=ghp_...          # GitHub PAT with issues:write
 GITHUB_REPO=AdityaParashar24/superset
 ```
 
@@ -335,4 +333,4 @@ superset-devin-orchestrator/
 | "Not configured" pill on dashboard | One or more of `DEVIN_API_KEY`, `DEVIN_ORG_ID`, `GITHUB_TOKEN` is empty in `.env`. |
 | Duplicate comments on GitHub issue | Ensure you're on the latest version — PR #15 added deduplication checks. |
 | Backend crash: "Incorrect number of bindings" | Ensure you're on the latest version — PR #16 fixed this. |
-| Triage session URL not appearing | The session is created asynchronously by the GitHub Action. Wait ~20s for the next poll cycle to discover it. |
+| Triage session URL not appearing | The session is created asynchronously by the GitHub Action. Wait ~8s for the next poll cycle to discover it. |
