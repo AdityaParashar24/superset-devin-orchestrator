@@ -12,7 +12,7 @@ every risky step.
 
 ## What it does
 
-For each GitHub issue, the console runs a two-stage pipeline backed by **separate
+For each GitHub issue, the orchestrator runs a two-stage pipeline backed by **separate
 Devin sessions**, each with a role-specific prompt and ACU budget:
 
 | Stage | Devin session | Allowed to | Output |
@@ -59,10 +59,10 @@ regardless of how the session was triggered.
 ```
 ┌──────────────────────────┐          ┌──────────────────────────┐
 │  GitHub Issue             │          │  React + Vite Dashboard  │
-│                          │          │  localhost:5173           │
+│                          │          │  localhost:3000           │
 │  Human adds label:       │          │                          │
-│  devin-triage or         │          │  "Run triage" / "Approve"│
-│  devin-remediate         │          │    buttons                 │
+│  devin-triage or         │          │                          │
+│  devin-remediate         │          │  "Run triage" / "Approve"│
 └──────────┬───────────────┘          └──────────┬───────────────┘
            │                                     │
            ▼                                     │
@@ -100,7 +100,7 @@ regardless of how the session was triggered.
 
 Every Devin session is tagged `["devin-orchestrator", "{role}", "issue-{N}"]`.
 
-On every poll cycle (~20s), the backend calls `list_sessions()`, filters by the
+On every poll cycle (~8s), the backend calls `list_sessions()`, filters by the
 `devin-orchestrator` tag, and matches sessions to issues via `issue-N` tags. Sessions
 started by the GitHub Action are adopted into the state machine. The dashboard triggers
 sessions indirectly by adding labels, which fire the same GitHub Action.
@@ -129,19 +129,39 @@ Any state → needs_attention (on error / no PR / invalid output)
 
 | When | Comment posted |
 |------|----------------|
-| Triage session starts | "Devin triage session started: {url}" |
+| Triage session starts | "Devin triage session started: {url}" (posted by GitHub Action) |
 | Triage completes | Triage report (readiness, risks, clarification, likely files) |
-| Remediation session starts | "Devin remediation session started: {url}" |
+| Remediation session starts | "Devin remediation session started: {url}" (posted by GitHub Action) |
 
 ---
 
-## Quick start (Docker)
+## Configuration
 
-### 1. Configure
+### Secrets (`.env`)
+
+These go in `.env` (gitignored) — the only file you need to edit:
+
+| Variable | Where to get it |
+|----------|----------------|
+| `DEVIN_API_KEY` | app.devin.ai → Settings → Service Users |
+| `DEVIN_ORG_ID` | app.devin.ai → Settings → Organization (starts with `org-`) |
+| `GITHUB_TOKEN` | GitHub PAT with `issues:write` + `pull_requests:read` on the target repo |
+
+Non-secret config (`GITHUB_REPO`, poll interval, ACU limits) lives in `docker-compose.yml` under `environment:`.
+
+---
+
+## Quick start
+
+### 1. Clone & configure
 ```bash
+git clone https://github.com/AdityaParashar24/superset-devin-orchestrator.git
+cd superset-devin-orchestrator
 cp .env.example .env
-# edit .env with your Devin + GitHub credentials
 ```
+
+Edit `.env` — fill in the three secrets (see [Configuration](#configuration)).
+Edit `GITHUB_REPO` in `docker-compose.yml` if using a different fork.
 
 ### 2. Run
 ```bash
@@ -150,61 +170,30 @@ docker compose up --build
 
 Open http://localhost:3000.
 
-- Frontend (nginx): port 3000
-- Backend (FastAPI): port 8080
+- Frontend (nginx): port **3000**
+- Backend (FastAPI): port **8080**
+
+### 3. Reset (clear all tracked issues)
+```bash
+docker compose down -v        # removes the DB volume
+docker compose up --build     # starts fresh
+```
 
 ---
 
-## Quick start (without Docker)
+## GitHub Action setup (event-driven label trigger)
 
-### 0. Prerequisites
-- Python 3.11+
-- Node 18+
+To enable the label-driven path (where adding `devin-triage` on an issue auto-starts
+triage), add the GitHub Action to your **Superset fork** (not this repo):
 
-### 1. Configure
-```bash
-cp .env.example .env
-# edit .env with your Devin + GitHub credentials
-```
-
-### 2. Backend
-```bash
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8080
-```
-
-### 3. Frontend
-```bash
-cd frontend
-npm install
-npm run dev           # http://localhost:5173 (proxies /api to :8080)
-```
-
-Open http://localhost:5173.
-
-### 4. (Optional) Event-driven label trigger
-
-To enable the label path, add the GitHub Action to your **Superset fork**
-(not this repo):
-
-1. Copy `devin-on-label.yml` to `<superset-fork>/.github/workflows/`
-2. Add repo secrets: `DEVIN_API_KEY`, `DEVIN_ORG_ID`
+1. Copy `.github/workflows/devin-on-label.yml` to `<superset-fork>/.github/workflows/`
+2. Add **repository secrets** to the fork:
+   - `DEVIN_API_KEY` — same service-user token as above
+   - `DEVIN_ORG_ID` — same org ID
 3. Create labels on the fork: `devin-triage`, `devin-remediate`
 
 Now applying `devin-triage` to an issue fires a triage session automatically.
-
----
-
-## Required credentials
-
-All four must be set in `.env` for the orchestrator to function:
-
-- `DEVIN_API_KEY` — a Devin service-user token (`app.devin.ai` → Settings → Service Users)
-- `DEVIN_ORG_ID` — your org id (`org-…`)
-- `GITHUB_TOKEN` — PAT with `issues:write` + `pull_requests:read`
-- `GITHUB_REPO` — e.g. `AdityaParashar24/superset`
+The dashboard's "Run triage" button also adds this label, triggering the same Action.
 
 ---
 
@@ -212,21 +201,20 @@ All four must be set in `.env` for the orchestrator to function:
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET  | `/api/health` | mode + config status |
-| GET  | `/api/issues` | all tracked issues |
-| GET  | `/api/issues/{n}` | one issue |
-| GET  | `/api/summary` | KPI counts |
-| POST | `/api/issues` | track a new issue |
-| POST | `/api/triage/{n}` | start (or re-run) a triage session |
-| POST | `/api/remediate/{n}` | approve → start remediation (the human gate) |
-| POST | `/api/review/{n}` | start a review session (normally auto-started) |
-| POST | `/api/poll` | force a poll tick |
+| GET  | `/api/health` | Config status (configured / not configured) |
+| GET  | `/api/issues` | All tracked issues with full state |
+| GET  | `/api/issues/{n}` | Single issue detail |
+| GET  | `/api/summary` | KPI counts (triaged, approved, PRs open, needs attention) |
+| POST | `/api/issues` | Track a new issue `{"github_issue_num": 7}` |
+| POST | `/api/triage/{n}` | Add `devin-triage` label → triggers triage session |
+| POST | `/api/remediate/{n}` | Add `devin-remediate` label → triggers remediation (the human gate) |
+| POST | `/api/poll` | Force a poll tick (discovery + advancement) |
 
 ---
 
 ## Candidate issues (Superset)
 
-Real, bounded issues in the fork that this console was designed around:
+Real, bounded issues in the fork that this orchestrator was designed around:
 
 1. **`pandas_postprocessing` rank edge case** — `superset/utils/pandas_postprocessing/rank.py`
 2. **`ExportTagsCommand` validation consistency** — `superset/commands/tag/export.py`
@@ -238,18 +226,33 @@ Real, bounded issues in the fork that this console was designed around:
 
 ```
 superset-devin-orchestrator/
-├── .env.example
+├── .env.example             # Secrets only
+├── docker-compose.yml       # One-command setup
 ├── backend/
-│   ├── main.py            # FastAPI app + routes + poll loop
-│   ├── orchestrator.py    # state machine, discover_sessions(), triage/review schemas
-│   ├── devin_client.py    # Devin REST wrapper (v3)
-│   ├── github_client.py   # issue/label/comment
-│   ├── store.py           # SQLite CRUD
-│   ├── models.py          # Pydantic models + enums
-│   ├── config.py          # .env loader
+│   ├── main.py              # FastAPI app + routes + poll loop
+│   ├── orchestrator.py      # State machine, discover_sessions(), stage handlers
+│   ├── devin_client.py      # Devin REST wrapper (v3)
+│   ├── github_client.py     # Issue/label/comment operations
+│   ├── store.py             # SQLite CRUD
+│   ├── models.py            # Pydantic models + Stage enum
+│   ├── config.py            # .env loader
+│   ├── requirements.txt     # Python dependencies
+│   ├── Dockerfile           # Backend container
 │   └── prompts/
-│       ├── triage.md      # read-only analysis prompt
-│       ├── remediation.md # fix + open PR prompt
-│       └── review.md      # PR review prompt
-└── frontend/              # React + Vite dashboard
+│       ├── triage.md        # Read-only analysis prompt
+│       └── remediation.md   # Fix + open PR prompt
+└── frontend/
+    ├── src/                 # React + TypeScript components
+    ├── package.json
+    ├── Dockerfile           # Frontend container (nginx)
+    └── nginx.conf           # Reverse proxy for /api → backend
 ```
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---------|-----|
+| "Not configured" pill on dashboard | One or more of `DEVIN_API_KEY`, `DEVIN_ORG_ID`, `GITHUB_TOKEN` is empty in `.env`. |
+| Triage session URL not appearing | The session is created asynchronously by the GitHub Action. Wait ~8s for the next poll cycle to discover it. |
