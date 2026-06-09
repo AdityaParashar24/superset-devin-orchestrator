@@ -82,10 +82,10 @@ regardless of how the session was triggered.
 │                                                              │
 │  orchestrator.py  — state machine, discover_sessions(),      │
 │                     stage handlers                            │
-│  devin_client.py  — create/get/list session                  │
+│  devin_client.py  — get/list session                          │
 │  github_client.py — get_issue, add_label, comment            │
 │  store.py         — SQLite persistence                       │
-│  prompts/         — triage.md, remediation.md                │
+│                                                              │
 └──────────┬──────────────────────────────────┬────────────────┘
            │                                  │
            ▼                                  ▼
@@ -144,7 +144,7 @@ These go in `.env` (gitignored) — the only file you need to edit:
 | `DEVIN_ORG_ID` | app.devin.ai → Settings → Organization (starts with `org-`) |
 | `GITHUB_TOKEN` | GitHub PAT with `issues:write` + `pull_requests:read` on the target repo |
 
-Non-secret config (`GITHUB_REPO`, poll interval, ACU limits) lives in `docker-compose.yml` under `environment:`.
+Non-secret config (`GITHUB_REPO`, poll interval) lives in `docker-compose.yml` under `environment:`.
 
 ---
 
@@ -234,10 +234,7 @@ superset-devin-orchestrator/
 │   ├── models.py            # Pydantic models + Stage enum
 │   ├── config.py            # .env loader
 │   ├── requirements.txt     # Python dependencies
-│   ├── Dockerfile           # Backend container
-│   └── prompts/
-│       ├── triage.md        # Read-only analysis prompt
-│       └── remediation.md   # Fix + open PR prompt
+│   └── Dockerfile           # Backend container
 └── frontend/
     ├── src/                 # React + TypeScript components
     ├── package.json

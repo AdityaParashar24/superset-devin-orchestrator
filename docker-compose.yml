@@ -8,8 +8,6 @@ services:
       - DB_PATH=/app/data/orchestrator.db
       - GITHUB_REPO=AdityaParashar24/superset
       - POLL_INTERVAL_SECONDS=8
-      - TRIAGE_MAX_ACU=5
-      - REMEDIATION_MAX_ACU=30
     ports:
       - "8080:8080"
 

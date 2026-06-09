@@ -16,7 +16,6 @@ export const api = {
   health: () => req<Health>("/health"),
   summary: () => req<Summary>("/summary"),
   listIssues: () => req<Issue[]>("/issues"),
-  getIssue: (n: number) => req<Issue>(`/issues/${n}`),
   triage: (n: number) => req<Issue>(`/triage/${n}`, { method: "POST" }),
   remediate: (n: number) => req<Issue>(`/remediate/${n}`, { method: "POST" }),
   createIssue: (num: number) =>
