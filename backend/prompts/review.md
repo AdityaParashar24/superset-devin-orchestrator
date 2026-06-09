@@ -24,5 +24,6 @@ Review the pull request against the original issue and the triage report.
 ## Return (via structured output)
 Leave a PR review comment, then return a structured verdict:
 - `verdict` (Approve / Needs changes / Needs human review)
+- `summary` (brief justification for the verdict — why the code is correct, or why it needs changes)
 - `concerns` (main concerns, or "None" if clean)
 - `follow_ups` (suggested follow-ups, or "None")

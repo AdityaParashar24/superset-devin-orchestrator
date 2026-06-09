@@ -70,10 +70,11 @@ REVIEW_SCHEMA: dict = {
             "type": "string",
             "enum": ["Approve", "Needs changes", "Needs human review"],
         },
+        "summary": {"type": "string"},
         "concerns": {"type": "string"},
         "follow_ups": {"type": "string"},
     },
-    "required": ["verdict", "concerns", "follow_ups"],
+    "required": ["verdict", "concerns", "follow_ups", "summary"],
 }
 
 class StageError(RuntimeError):
@@ -335,6 +336,7 @@ class Orchestrator:
         self.store.upsert_issue(issue)
         await self._safe_add_label(issue.github_issue_num, LABEL_REVIEWED)
         comment = f"### Review Verdict: {issue.review_verdict}\n\n"
+        summary = out.get("summary", "")
         concerns = out.get("concerns", "")
         follow_ups = out.get("follow_ups", "")
         if concerns and concerns != "None":
