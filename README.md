@@ -1,11 +1,10 @@
 # Devin Orchestrator
 
 A human-in-the-loop control plane that turns bounded **Apache Superset** maintenance
-issues into reviewable pull requests using **Devin** — with a human approval gate at
-every risky step.
+issues into reviewable pull requests using **Devin**.
 
 > **Operating principle:** Devin *recommends*, a human *approves*, Devin *executes*,
-> a human *merges*. No code is changed without explicit human approval. Devin's
+> a human *merges*. Devin's
 > built-in Review bot auto-reviews every PR.
 
 ---
