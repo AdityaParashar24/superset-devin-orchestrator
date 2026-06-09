@@ -168,9 +168,10 @@ class Orchestrator:
             issue.state = Stage.NEEDS_ATTENTION
             issue.failure_reason = "Triage returned no/invalid structured output."
         self.store.upsert_issue(issue)
-        # Post triage report + label on GitHub
+        # Post triage report + label on GitHub (skip if already posted)
+        already_posted = await self._has_label(issue.github_issue_num, LABEL_TRIAGED)
         await self._safe_add_label(issue.github_issue_num, LABEL_TRIAGED)
-        if issue.state == Stage.TRIAGED:
+        if issue.state == Stage.TRIAGED and not already_posted:
             comment = (
                 f"### Triage Report\n\n"
                 f"**Readiness:** {issue.readiness_level} ({issue.readiness_score}/100) "
@@ -191,7 +192,8 @@ class Orchestrator:
             issue.pr_state = prs[0].get("pr_state")
             issue.state = Stage.PR_OPEN
             self.store.upsert_issue(issue)
-            await self._safe_add_label(issue.github_issue_num, LABEL_PR_OPEN)
+            if not await self._has_label(issue.github_issue_num, LABEL_PR_OPEN):
+                await self._safe_add_label(issue.github_issue_num, LABEL_PR_OPEN)
         else:
             issue.state = Stage.NEEDS_ATTENTION
             issue.failure_reason = "Remediation session finished without opening a PR."
@@ -209,6 +211,13 @@ class Orchestrator:
             await self.github.add_label(num, label)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not add label %s to #%s: %s", label, num, exc)
+
+    async def _has_label(self, num: int, label: str) -> bool:
+        """Check if a label is already on the issue (to avoid duplicate comments)."""
+        try:
+            return label in await self.github.get_labels(num)
+        except Exception:  # noqa: BLE001
+            return False
 
     # ----- session discovery (for label-triggered sessions) ----------------
     async def discover_sessions(self) -> None:
