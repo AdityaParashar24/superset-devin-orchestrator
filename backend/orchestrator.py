@@ -146,12 +146,12 @@ class Orchestrator:
         session = await self.devin.get_session(session_id)
         status = session.get("status")
 
-        if status in ("error", "suspended"):
+        if status == "error":
             issue.state = Stage.NEEDS_ATTENTION
             issue.failure_reason = session.get("status_detail") or status
             self.store.upsert_issue(issue)
             return
-        if status in ("exit", "blocked"):
+        if status in ("exit", "blocked", "suspended"):
             await handler(issue, session)
         elif status == "running" and self._session_looks_done(issue, session):
             await handler(issue, session)
@@ -266,9 +266,9 @@ class Orchestrator:
             status = s.get("status", "")
 
             if issue is None:
-                # Only auto-ingest from running sessions to avoid resurrecting
+                # Only auto-ingest from active sessions to avoid resurrecting
                 # issues from old exited sessions on a fresh DB.
-                if status not in ("running", "blocked"):
+                if status not in ("running", "blocked", "suspended"):
                     continue
                 try:
                     issue = await self.ingest_issue(issue_num)
