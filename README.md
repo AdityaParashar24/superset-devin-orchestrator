@@ -137,47 +137,14 @@ Any state → needs_attention (on error / no PR / invalid output)
 
 ## Required credentials
 
-All values must be set in `.env` for the orchestrator to function. Here's how to obtain each:
+All four must be set in `.env`:
 
-### `DEVIN_API_KEY`
-
-A **Devin service-user token** with `ManageOrgSessions` permission.
-
-1. Go to https://app.devin.ai → Settings → Service Users
-2. Create a new service user (or use an existing one)
-3. Copy the API key
-
-### `DEVIN_ORG_ID`
-
-Your Devin organization ID (starts with `org-`).
-
-1. Go to https://app.devin.ai → Settings → Organization
-2. Copy the org ID (e.g. `org-84ebc020f3304bf993306ca45f8d9177`)
-
-Or query the API:
-```bash
-curl -H "Authorization: Bearer $DEVIN_API_KEY" \
-  https://api.devin.ai/v3/enterprise/organizations
-```
-
-### `GITHUB_TOKEN`
-
-A GitHub **Personal Access Token** (classic or fine-grained) with:
-- `issues:write` — to add labels and post comments
-- `pull_requests:read` — to read PR state
-
-For a **fine-grained token**:
-1. Go to https://github.com/settings/tokens?type=beta
-2. Select the target repository (e.g. `AdityaParashar24/superset`)
-3. Grant: Issues → Read and write, Pull requests → Read
-
-For a **classic token**:
-1. Go to https://github.com/settings/tokens
-2. Select scopes: `repo` (or `public_repo` for public repos)
-
-### `GITHUB_REPO`
-
-The `owner/repo` of the Superset fork where issues live (e.g. `AdityaParashar24/superset`).
+| Variable | Where to get it |
+|----------|----------------|
+| `DEVIN_API_KEY` | app.devin.ai → Settings → Service Users |
+| `DEVIN_ORG_ID` | app.devin.ai → Settings → Organization (starts with `org-`) |
+| `GITHUB_TOKEN` | GitHub PAT with `issues:write` + `pull_requests:read` on the target repo |
+| `GITHUB_REPO` | `owner/repo` of the Superset fork (e.g. `AdityaParashar24/superset`) |
 
 ### Optional settings
 
@@ -198,13 +165,7 @@ cd superset-devin-orchestrator
 cp .env.example .env
 ```
 
-Edit `.env` and fill in the four required values:
-```env
-DEVIN_API_KEY=dv_su_...       # Service user token from app.devin.ai
-DEVIN_ORG_ID=org-...          # Your org ID
-GITHUB_TOKEN=ghp_...          # GitHub PAT with issues:write
-GITHUB_REPO=AdityaParashar24/superset
-```
+Edit `.env` — fill in the four required values (see [Required credentials](#required-credentials)).
 
 ### 2. Run
 ```bash
