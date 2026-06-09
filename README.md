@@ -147,16 +147,7 @@ These go in `.env` (gitignored) — the only file you need to edit:
 | `DEVIN_ORG_ID` | app.devin.ai → Settings → Organization (starts with `org-`) |
 | `GITHUB_TOKEN` | GitHub PAT with `issues:write` + `pull_requests:read` on the target repo |
 
-### Non-secret config (`docker-compose.yml`)
-
-These live directly in `docker-compose.yml` under `environment:`:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GITHUB_REPO` | `AdityaParashar24/superset` | `owner/repo` of the Superset fork |
-| `POLL_INTERVAL_SECONDS` | `8` | How often the backend polls Devin for session updates |
-| `TRIAGE_MAX_ACU` | `5` | Max ACU budget for triage sessions |
-| `REMEDIATION_MAX_ACU` | `30` | Max ACU budget for remediation sessions |
+Non-secret config (`GITHUB_REPO`, poll interval, ACU limits) lives in `docker-compose.yml` under `environment:`.
 
 ---
 
