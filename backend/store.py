@@ -133,9 +133,10 @@ class Store:
         return [self._row_to_issue(r) for r in rows]
 
     def list_in_flight(self) -> list[Issue]:
+        placeholders = ", ".join("?" for _ in _IN_FLIGHT)
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM issues WHERE state IN (?, ?, ?)",
+                f"SELECT * FROM issues WHERE state IN ({placeholders})",
                 tuple(_IN_FLIGHT),
             ).fetchall()
         return [self._row_to_issue(r) for r in rows]
