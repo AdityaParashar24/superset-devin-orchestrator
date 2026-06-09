@@ -199,11 +199,6 @@ class Orchestrator:
         if status in ("exit", "blocked"):
             await handler(issue, session)
         elif status == "running" and self._session_looks_done(issue, session):
-            logger.info("Session %s produced output while running; stopping.", session_id)
-            try:
-                await self.devin.stop_session(session_id)
-            except Exception:  # noqa: BLE001
-                logger.warning("Could not stop session %s", session_id)
             await handler(issue, session)
 
     async def _on_triage_done(self, issue: Issue, session: dict) -> None:
@@ -317,10 +312,6 @@ class Orchestrator:
             sid = s.get("session_id", "")
             if sid in known_sids:
                 continue
-            # Only adopt sessions that are still running — ignore exited/stopped ones.
-            status = s.get("status", "")
-            if status not in ("running", "blocked"):
-                continue
             tags = s.get("tags") or []
             issue_num = None
             for tag in tags:
@@ -336,7 +327,13 @@ class Orchestrator:
             is_review = "review" in tags
 
             issue = self.store.get_issue(issue_num)
+            status = s.get("status", "")
+
             if issue is None:
+                # Only auto-ingest from running sessions to avoid resurrecting
+                # issues from old exited sessions on a fresh DB.
+                if status not in ("running", "blocked"):
+                    continue
                 try:
                     issue = await self.ingest_issue(issue_num)
                 except Exception:  # noqa: BLE001
