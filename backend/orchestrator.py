@@ -56,8 +56,14 @@ class Orchestrator:
         if not title or not body:
             try:
                 gh = await self.github.get_issue(num)
+                if "pull_request" in gh:
+                    raise StageError(
+                        f"#{num} is a pull request, not an issue."
+                    )
                 title = title or gh.get("title", f"Issue #{num}")
                 body = body or (gh.get("body") or "")
+            except StageError:
+                raise
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not fetch issue %s from GitHub: %s", num, exc)
                 title = title or f"Issue #{num}"

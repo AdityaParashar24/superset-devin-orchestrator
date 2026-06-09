@@ -101,7 +101,10 @@ async def summary() -> dict:
 # ----- action endpoints ----------------------------------------------------
 @app.post("/api/issues", response_model=Issue)
 async def create_issue(req: CreateIssueRequest) -> Issue:
-    return await orchestrator.ingest_issue(req.github_issue_num)
+    try:
+        return await orchestrator.ingest_issue(req.github_issue_num)
+    except StageError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @app.post("/api/triage/{num}", response_model=Issue)
