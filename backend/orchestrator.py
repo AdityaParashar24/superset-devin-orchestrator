@@ -317,10 +317,6 @@ class Orchestrator:
             sid = s.get("session_id", "")
             if sid in known_sids:
                 continue
-            # Only adopt sessions that are still running — ignore exited/stopped ones.
-            status = s.get("status", "")
-            if status not in ("running", "blocked"):
-                continue
             tags = s.get("tags") or []
             issue_num = None
             for tag in tags:
@@ -336,7 +332,13 @@ class Orchestrator:
             is_review = "review" in tags
 
             issue = self.store.get_issue(issue_num)
+            status = s.get("status", "")
+
             if issue is None:
+                # Only auto-ingest from running sessions to avoid resurrecting
+                # issues from old exited sessions on a fresh DB.
+                if status not in ("running", "blocked"):
+                    continue
                 try:
                     issue = await self.ingest_issue(issue_num)
                 except Exception:  # noqa: BLE001
