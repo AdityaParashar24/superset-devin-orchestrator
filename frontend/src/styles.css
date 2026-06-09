@@ -189,14 +189,13 @@ body {
 }
 
 .badge-new { color: var(--muted); }
-.badge-triaging, .badge-remediating, .badge-reviewing {
+.badge-triaging, .badge-remediating {
   color: var(--accent);
   border-color: var(--accent);
 }
 .badge-triaged { color: var(--purple); border-color: var(--purple); }
 .badge-approved { color: var(--accent); border-color: var(--accent); }
 .badge-pr_open { color: var(--green); border-color: var(--green); }
-.badge-reviewed { color: var(--green); border-color: var(--green); background: rgba(47,191,155,0.12); }
 .badge-needs_attention { color: var(--red); border-color: var(--red); }
 
 .readiness {

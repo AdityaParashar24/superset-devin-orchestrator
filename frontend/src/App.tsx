@@ -62,8 +62,7 @@ export default function App() {
           <h1>Devin Orchestrator</h1>
           <p className="subtitle">
             Autonomous maintenance workflow with human approval gates · Devin
-            recommends → human approves → Devin executes → Devin reviews → human
-            merges
+            recommends → human approves → Devin executes → human merges
           </p>
         </div>
         <div className="status">

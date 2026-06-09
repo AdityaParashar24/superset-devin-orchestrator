@@ -16,8 +16,6 @@ class Stage(str, Enum):
     APPROVED = "approved"
     REMEDIATING = "remediating"
     PR_OPEN = "pr_open"
-    REVIEWING = "reviewing"
-    REVIEWED = "reviewed"
     NEEDS_ATTENTION = "needs_attention"
 
 
@@ -60,12 +58,8 @@ class Issue(BaseModel):
     triage_session_url: str | None = None
     remediation_session_id: str | None = None
     remediation_session_url: str | None = None
-    review_session_id: str | None = None
-    review_session_url: str | None = None
-
     pr_url: str | None = None
     pr_state: str | None = None
-    review_verdict: str | None = None
     failure_reason: str | None = None
 
     created_at: str | None = None

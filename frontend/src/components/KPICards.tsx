@@ -5,7 +5,6 @@ const CARDS: { key: keyof Summary; label: string }[] = [
   { key: "triaged", label: "Triaged" },
   { key: "approved", label: "Approved" },
   { key: "prs_open", label: "PRs opened" },
-  { key: "reviewed", label: "Reviewed" },
   { key: "needs_attention", label: "Needs attention" },
 ];
 

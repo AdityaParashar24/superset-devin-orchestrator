@@ -91,10 +91,9 @@ async def summary() -> dict:
 
     return {
         "total": len(issues),
-        "triaged": count("triaged", "approved", "remediating", "pr_open", "reviewing", "reviewed"),
-        "approved": count("approved", "remediating", "pr_open", "reviewing", "reviewed"),
-        "prs_open": count("pr_open", "reviewing", "reviewed"),
-        "reviewed": count("reviewed"),
+        "triaged": count("triaged", "approved", "remediating", "pr_open"),
+        "approved": count("approved", "remediating", "pr_open"),
+        "prs_open": count("pr_open"),
         "needs_attention": count("needs_attention"),
     }
 
@@ -117,14 +116,6 @@ async def triage(num: int) -> Issue:
 async def remediate(num: int) -> Issue:
     try:
         return await orchestrator.start_remediation(num)
-    except StageError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-
-@app.post("/api/review/{num}", response_model=Issue)
-async def review(num: int) -> Issue:
-    try:
-        return await orchestrator.start_review(num)
     except StageError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 

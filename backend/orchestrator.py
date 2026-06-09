@@ -1,4 +1,4 @@
-"""Core orchestration: turns GitHub issues into triage -> remediation -> review.
+"""Core orchestration: turns GitHub issues into triage -> remediation -> PR.
 
 The orchestrator is a small state machine. Each `start_*` method launches a Devin
 session for one role and records the session on the issue. A background poll loop
@@ -9,14 +9,13 @@ Design choices worth noting:
   * The PR is read directly off the remediation session's `pull_requests[]` — we do
     not scrape GitHub for it.
   * Devin recommends, a human approves (applies `devin-remediate` / clicks Approve),
-    Devin executes, Devin self-reviews, a human merges.
+    Devin executes, Devin Review bot reviews, a human merges.
 """
 
 from __future__ import annotations
 
 import logging
 import re
-from pathlib import Path
 
 from config import Settings
 from devin_client import DevinClient
@@ -29,45 +28,11 @@ from models import Issue, Stage, TriageReport
 
 LABEL_TRIAGED = "devin-triaged"
 LABEL_PR_OPEN = "devin-pr-open"
-LABEL_REVIEWED = "devin-reviewed"
 
 logger = logging.getLogger("orchestrator")
 
-_PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
-
-REVIEW_SCHEMA: dict = {
-    "type": "object",
-    "properties": {
-        "verdict": {
-            "type": "string",
-            "enum": ["Approve", "Needs changes", "Needs human review"],
-        },
-        "summary": {"type": "string"},
-        "concerns": {"type": "string"},
-        "follow_ups": {"type": "string"},
-    },
-    "required": ["verdict", "concerns", "follow_ups", "summary"],
-}
-
 class StageError(RuntimeError):
     """Raised when an action is invalid for the issue's current stage."""
-
-
-def _load_prompt(name: str) -> str:
-    return (_PROMPTS_DIR / name).read_text(encoding="utf-8")
-
-
-def _triage_report_text(issue: Issue) -> str:
-    return (
-        f"readiness_score: {issue.readiness_score}\n"
-        f"readiness_level: {issue.readiness_level}\n"
-        f"recommendation: {issue.recommendation}\n"
-        f"likely_files: {', '.join(issue.likely_files)}\n"
-        f"suggested_validation: {issue.suggested_validation}\n"
-        f"risk_notes: {issue.risk_notes}\n"
-        f"remediation_prompt: {issue.remediation_prompt}\n"
-        f"clarification_needed: {issue.clarification_needed}\n"
-    )
 
 
 class Orchestrator:
@@ -139,42 +104,12 @@ class Orchestrator:
         await self._safe_add_label(num, LABEL_REMEDIATE)
         return issue
 
-    # ----- stage: review ---------------------------------------------------
-    async def start_review(self, num: int) -> Issue:
-        issue = self.store.get_issue(num)
-        if issue is None:
-            raise StageError(f"Issue #{num} is not tracked yet.")
-        if not issue.pr_url:
-            raise StageError(f"Issue #{num} has no PR to review yet.")
-
-        prompt = _load_prompt("review.md").format(
-            repo=self.repo,
-            pr_url=issue.pr_url,
-            issue_number=issue.github_issue_num,
-            issue_title=issue.title,
-            triage_report=_triage_report_text(issue),
-        )
-        session = await self.devin.create_session(
-            prompt=prompt,
-            repos=[self.repo],
-            title=f"Review: Superset issue #{num}",
-            max_acu_limit=self.settings.review_max_acu,
-            structured_output_schema=REVIEW_SCHEMA,
-            tags=["devin-orchestrator", "review", f"issue-{issue.github_issue_num}"],
-        )
-        issue.review_session_id = session["session_id"]
-        issue.review_session_url = session.get("url")
-        issue.state = Stage.REVIEWING
-        issue.failure_reason = None
-        self.store.upsert_issue(issue)
-        return issue
-
     # ----- polling ---------------------------------------------------------
     async def poll_once(self) -> None:
         """Discover externally-started sessions, then advance in-flight issues.
 
         Loops until no issue changes state so that a fully-completed pipeline
-        (triage → remediation → review) can catch up in a single poll cycle
+        (triage → remediation) can catch up in a single poll cycle
         instead of requiring one cycle per stage.
         """
         max_rounds = 10  # safety cap to avoid infinite loops
@@ -198,7 +133,6 @@ class Orchestrator:
         session_id, handler = {
             Stage.TRIAGING: (issue.triage_session_id, self._on_triage_done),
             Stage.REMEDIATING: (issue.remediation_session_id, self._on_remediation_done),
-            Stage.REVIEWING: (issue.review_session_id, self._on_review_done),
         }[issue.state]
 
         if not session_id:
@@ -258,39 +192,12 @@ class Orchestrator:
             issue.state = Stage.PR_OPEN
             self.store.upsert_issue(issue)
             await self._safe_add_label(issue.github_issue_num, LABEL_PR_OPEN)
-            # Auto-kick the review session once a PR exists.
-            await self.start_review(issue.github_issue_num)
         else:
             issue.state = Stage.NEEDS_ATTENTION
             issue.failure_reason = "Remediation session finished without opening a PR."
             self.store.upsert_issue(issue)
 
-    async def _on_review_done(self, issue: Issue, session: dict) -> None:
-        out = session.get("structured_output") or {}
-        issue.review_verdict = out.get("verdict", "Needs human review")
-        issue.state = Stage.REVIEWED
-        self.store.upsert_issue(issue)
-        await self._safe_add_label(issue.github_issue_num, LABEL_REVIEWED)
-        summary = out.get("summary", "")
-        concerns = out.get("concerns", "")
-        follow_ups = out.get("follow_ups", "")
-        comment = f"### Review Verdict: {issue.review_verdict}\n\n"
-        comment += f"**Summary:** {summary or 'No summary provided.'}\n\n"
-        comment += f"**Concerns:** {concerns or 'None'}\n\n"
-        comment += f"**Follow-ups:** {follow_ups or 'None'}\n"
-        pr_num = self._pr_number_from_url(issue.pr_url)
-        if pr_num:
-            await self._safe_comment(pr_num, comment)
-
     # ----- helpers ---------------------------------------------------------
-    @staticmethod
-    def _pr_number_from_url(pr_url: str | None) -> int | None:
-        """Extract the PR number from a GitHub PR URL like .../pull/42."""
-        if not pr_url:
-            return None
-        m = re.search(r"/pull/(\d+)", pr_url)
-        return int(m.group(1)) if m else None
-
     async def _safe_comment(self, num: int, body: str) -> None:
         try:
             await self.github.comment(num, body)
@@ -319,7 +226,7 @@ class Orchestrator:
 
         known_sids = set()
         for issue in self.store.list_issues():
-            for sid in (issue.triage_session_id, issue.remediation_session_id, issue.review_session_id):
+            for sid in (issue.triage_session_id, issue.remediation_session_id):
                 if sid:
                     known_sids.add(sid)
 
@@ -339,7 +246,6 @@ class Orchestrator:
 
             is_triage = "triage" in tags
             is_remediation = "remediation" in tags
-            is_review = "review" in tags
 
             issue = self.store.get_issue(issue_num)
             status = s.get("status", "")
@@ -373,14 +279,6 @@ class Orchestrator:
                 if issue.state in (Stage.TRIAGED, Stage.APPROVED):
                     issue.state = Stage.REMEDIATING
                 self.store.upsert_issue(issue)
-            elif is_review and not issue.review_session_id and issue.state in (
-                Stage.PR_OPEN, Stage.REVIEWING,
-            ):
-                issue.review_session_id = sid
-                issue.review_session_url = url
-                if issue.state == Stage.PR_OPEN:
-                    issue.state = Stage.REVIEWING
-                self.store.upsert_issue(issue)
 
     @staticmethod
     def _session_looks_done(issue: Issue, session: dict) -> bool:
@@ -389,6 +287,4 @@ class Orchestrator:
             return bool(session.get("structured_output"))
         if issue.state == Stage.REMEDIATING:
             return bool(session.get("pull_requests"))
-        if issue.state == Stage.REVIEWING:
-            return bool(session.get("structured_output"))
         return False

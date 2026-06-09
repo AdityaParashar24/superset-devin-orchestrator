@@ -5,7 +5,6 @@ const ORDER: Stage[] = [
   "triaged",
   "approved",
   "pr_open",
-  "reviewed",
 ];
 
 const STEP_LABELS: { stage: Stage; label: string }[] = [
@@ -13,7 +12,6 @@ const STEP_LABELS: { stage: Stage; label: string }[] = [
   { stage: "triaged", label: "Devin triage — readiness report" },
   { stage: "approved", label: "Human approval — devin-remediate" },
   { stage: "pr_open", label: "Devin remediation — PR opened" },
-  { stage: "reviewed", label: "Devin review — verdict posted" },
 ];
 
 function stageIndex(stage: Stage): number {
@@ -25,8 +23,6 @@ function stageIndex(stage: Stage): number {
     approved: "approved",
     remediating: "approved",
     pr_open: "pr_open",
-    reviewing: "pr_open",
-    reviewed: "reviewed",
     needs_attention: "new",
   };
   return ORDER.indexOf(map[stage]);
@@ -36,13 +32,13 @@ export function IssueDetail({ issue }: { issue: Issue | null }) {
   if (!issue) {
     return (
       <div className="detail empty muted">
-        Select an issue to see its full triage → remediation → review journey.
+        Select an issue to see its full triage → remediation journey.
       </div>
     );
   }
 
   const current = stageIndex(issue.state);
-  const isActive = ["triaging", "remediating", "reviewing"].includes(issue.state);
+  const isActive = ["triaging", "remediating"].includes(issue.state);
 
   return (
     <div className="detail">
@@ -115,13 +111,6 @@ export function IssueDetail({ issue }: { issue: Issue | null }) {
               </a>
             </li>
           )}
-          {issue.review_session_url && (
-            <li>
-              <a href={issue.review_session_url} target="_blank" rel="noreferrer">
-                Review session ↗
-              </a>
-            </li>
-          )}
           {issue.pr_url && (
             <li>
               Pull request:{" "}
@@ -129,11 +118,6 @@ export function IssueDetail({ issue }: { issue: Issue | null }) {
                 {issue.pr_url}
               </a>{" "}
               ({issue.pr_state})
-            </li>
-          )}
-          {issue.review_verdict && (
-            <li>
-              Review verdict: <strong>{issue.review_verdict}</strong>
             </li>
           )}
         </ul>

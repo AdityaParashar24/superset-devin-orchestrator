@@ -7,8 +7,6 @@ const LABELS: Record<Stage, string> = {
   approved: "Approved",
   remediating: "Remediating…",
   pr_open: "PR opened",
-  reviewing: "Reviewing…",
-  reviewed: "Reviewed",
   needs_attention: "Needs attention",
 };
 
